@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CRM Soñar y Donar</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Pantalla de acceso -->
+  <div id="gate" class="gate">
+    <div class="gate-card">
+      <h1>Soñar y Donar</h1>
+      <p>Ingresá el código de acceso para entrar al CRM.</p>
+      <input type="password" id="access-code-input" placeholder="Código de acceso" autocomplete="off" />
+      <button id="access-code-btn">Entrar</button>
+      <p id="access-error" class="error hidden">Código incorrecto.</p>
+    </div>
+  </div>
+
+  <!-- App -->
+  <div id="app" class="app hidden">
+    <header class="topbar">
+      <h1>CRM · Soñar y Donar</h1>
+      <button id="btn-new" class="btn btn-primary">+ Nueva institución</button>
+    </header>
+
+    <section class="stats" id="stats">
+      <div class="stat-card">
+        <span class="stat-value" id="stat-total">–</span>
+        <span class="stat-label">Total ONGs</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value" id="stat-contactadas">–</span>
+        <span class="stat-label">Contactadas</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value" id="stat-pendientes">–</span>
+        <span class="stat-label">Pendientes</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-value" id="stat-verificado">–</span>
+        <span class="stat-label">Contacto verificado</span>
+      </div>
+    </section>
+
+    <section class="filters">
+      <input type="text" id="search" placeholder="Buscar por institución, referente, email..." />
+      <select id="filter-area">
+        <option value="">Todas las áreas</option>
+      </select>
+      <select id="filter-estado">
+        <option value="">Todos los estados</option>
+      </select>
+      <button id="btn-refresh" class="btn btn-ghost" title="Recargar datos">↻ Actualizar</button>
+    </section>
+
+    <section class="table-wrap">
+      <table id="table">
+        <thead>
+          <tr>
+            <th>Institución</th>
+            <th>Área</th>
+            <th>Ciudad</th>
+            <th>Referente / Contacto</th>
+            <th>Estado</th>
+            <th>Contactado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr><td colspan="7" class="loading">Cargando datos...</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- Modal alta/edición -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modal-title">Nueva institución</h2>
+        <button id="modal-close" class="btn-icon">✕</button>
+      </div>
+      <form id="form-record" class="modal-body">
+        <input type="hidden" id="f-id" />
+
+        <label>Institución *
+          <input type="text" id="f-institucion" required />
+        </label>
+
+        <div class="grid-2">
+          <label>Área / Rubro
+            <input type="text" id="f-area" />
+          </label>
+          <label>Ciudad
+            <input type="text" id="f-ciudad" />
+          </label>
+        </div>
+
+        <label>Descripción
+          <textarea id="f-descripcion" rows="2"></textarea>
+        </label>
+
+        <div class="grid-2">
+          <label>Referente
+            <input type="text" id="f-referente" />
+          </label>
+          <label>Director / Autoridad
+            <input type="text" id="f-director" />
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <label>Email
+            <input type="email" id="f-email" />
+          </label>
+          <label>Teléfono
+            <input type="text" id="f-telefono" />
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <label>Web
+            <input type="text" id="f-web" />
+          </label>
+          <label>Alcance
+            <input type="text" id="f-alcance" placeholder="Nacional / Regional / Local" />
+          </label>
+        </div>
+
+        <label>Tipos de eventos de recaudación
+          <input type="text" id="f-tiposEventos" />
+        </label>
+
+        <div class="grid-2">
+          <label>Contactado
+            <select id="f-contactado">
+              <option value="No">No</option>
+              <option value="Sí">Sí</option>
+            </select>
+          </label>
+          <label>Estado
+            <select id="f-estado">
+              <option value="Pendiente">Pendiente</option>
+              <option value="En proceso">En proceso</option>
+              <option value="Contacto verificado">Contacto verificado</option>
+              <option value="Descartado">Descartado</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="grid-2">
+          <label>Fecha de contacto
+            <input type="text" id="f-fechaContacto" placeholder="dd/mm/aaaa" />
+          </label>
+          <label>Quién contactó
+            <input type="text" id="f-quienContacto" />
+          </label>
+        </div>
+
+        <label>Notas / Resumen de la reunión
+          <textarea id="f-notas" rows="3"></textarea>
+        </label>
+
+        <div class="modal-footer">
+          <span id="form-error" class="error hidden"></span>
+          <button type="submit" class="btn btn-primary" id="btn-save">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

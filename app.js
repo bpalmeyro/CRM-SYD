@@ -4,12 +4,16 @@
 let RECORDS = [];
 let unlocked = false;
 
+const OPERATOR_STORAGE_KEY = "crmOperatorEmail";
+
 const els = {
   gate: document.getElementById("gate"),
   app: document.getElementById("app"),
   accessInput: document.getElementById("access-code-input"),
   accessBtn: document.getElementById("access-code-btn"),
   accessError: document.getElementById("access-error"),
+
+  operatorEmail: document.getElementById("operator-email"),
 
   search: document.getElementById("search"),
   filterArea: document.getElementById("filter-area"),
@@ -29,8 +33,35 @@ const els = {
   modalClose: document.getElementById("modal-close"),
   form: document.getElementById("form-record"),
   formError: document.getElementById("form-error"),
-  btnSave: document.getElementById("btn-save")
+  btnSave: document.getElementById("btn-save"),
+
+  recordatorioFecha: document.getElementById("f-recordatorioFecha"),
+  recordatorioInstrucciones: document.getElementById("f-recordatorioInstrucciones"),
+  recordatorioEmailPreview: document.getElementById("f-recordatorioEmailPreview"),
+  reminderStatus: document.getElementById("reminder-status")
 };
+
+// ---------------- Operador (email persistente en localStorage) ----------------
+
+(function initOperatorEmail() {
+  const saved = localStorage.getItem(OPERATOR_STORAGE_KEY) || "";
+  els.operatorEmail.value = saved;
+  syncReminderPreview();
+})();
+
+els.operatorEmail.addEventListener("input", function () {
+  localStorage.setItem(OPERATOR_STORAGE_KEY, els.operatorEmail.value.trim());
+  els.operatorEmail.classList.toggle("saved", els.operatorEmail.value.trim() !== "");
+  syncReminderPreview();
+});
+
+function syncReminderPreview() {
+  const email = els.operatorEmail.value.trim();
+  els.recordatorioEmailPreview.value = email || "";
+  els.recordatorioEmailPreview.placeholder = email
+    ? ""
+    : 'Completá "Tu email" arriba';
+}
 
 // ---------------- Acceso ----------------
 
@@ -54,7 +85,7 @@ function tryUnlock() {
 // ---------------- Carga de datos ----------------
 
 async function cargarDatos() {
-  els.tableBody.innerHTML = '<tr><td colspan="7" class="loading">Cargando datos...</td></tr>';
+  els.tableBody.innerHTML = '<tr><td colspan="8" class="loading"><span class="spinner"></span> Cargando datos...</td></tr>';
   try {
     const res = await fetch(CONFIG.API_URL, { method: "GET" });
     const json = await res.json();
@@ -65,7 +96,7 @@ async function cargarDatos() {
     renderTabla();
   } catch (err) {
     els.tableBody.innerHTML =
-      '<tr><td colspan="7" class="empty">No se pudo cargar la información. Revisá que la URL en config.js sea correcta. (' +
+      '<tr><td colspan="8" class="empty">No se pudo cargar la información. Revisá que la URL en config.js sea correcta. (' +
       err.message +
       ")</td></tr>";
   }
@@ -108,17 +139,44 @@ function fillSelect(select, valuesSet, placeholder) {
   select.value = current;
 }
 
+// ---------------- Stats (con count-up) ----------------
+
 function renderStats() {
   const total = RECORDS.length;
   const contactadas = RECORDS.filter(function (r) { return r["Contactado"] === "Sí"; }).length;
   const pendientes = RECORDS.filter(function (r) { return r["Estado"] === "Pendiente"; }).length;
   const verificado = RECORDS.filter(function (r) { return r["Estado"] === "Contacto verificado"; }).length;
 
-  els.statTotal.textContent = total;
-  els.statContactadas.textContent = contactadas;
-  els.statPendientes.textContent = pendientes;
-  els.statVerificado.textContent = verificado;
+  animarNumero(els.statTotal, total);
+  animarNumero(els.statContactadas, contactadas);
+  animarNumero(els.statPendientes, pendientes);
+  animarNumero(els.statVerificado, verificado);
 }
+
+function animarNumero(el, target) {
+  const start = Number(el.getAttribute("data-target")) || 0;
+  el.setAttribute("data-target", target);
+
+  const prefersReduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (prefersReduced || start === target) {
+    el.textContent = target;
+    return;
+  }
+
+  const duration = 450;
+  const startTime = performance.now();
+
+  function tick(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+    const value = Math.round(start + (target - start) * eased);
+    el.textContent = value;
+    if (progress < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// ---------------- Tabla ----------------
 
 function renderTabla() {
   const q = els.search.value.trim().toLowerCase();
@@ -144,7 +202,7 @@ function renderTabla() {
   });
 
   if (filtered.length === 0) {
-    els.tableBody.innerHTML = '<tr><td colspan="7" class="empty">No hay resultados con estos filtros.</td></tr>';
+    els.tableBody.innerHTML = '<tr><td colspan="8" class="empty">No hay resultados con estos filtros.</td></tr>';
     return;
   }
 
@@ -161,6 +219,7 @@ function renderTabla() {
         "</td>" +
         "<td>" + badge(r["Estado"]) + "</td>" +
         "<td>" + escapeHtml(r["Contactado"]) + "</td>" +
+        "<td>" + reminderCell(r) + "</td>" +
         "<td class='row-actions'><button data-id='" + r["ID"] + "'>Editar</button></td>" +
         "</tr>"
       );
@@ -172,6 +231,32 @@ function renderTabla() {
       abrirModalEdicion(btn.getAttribute("data-id"));
     });
   });
+}
+
+function reminderCell(r) {
+  const fecha = r["Recordatorio Fecha"];
+  if (!fecha) return "<span class='reminder-cell'>—</span>";
+  const enviado = (r["Recordatorio Enviado"] || "").toString().toLowerCase();
+  const sent = enviado === "sí" || enviado === "si";
+  const label = formatearFechaCorta(fecha);
+  return sent
+    ? "<span class='reminder-cell sent'>✓ enviado " + label + "</span>"
+    : "<span class='reminder-cell pending'>🔔 " + label + "</span>";
+}
+
+function formatearFechaCorta(iso) {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  const pad = function (n) { return String(n).padStart(2, "0"); };
+  return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+
+function isoToDatetimeLocal(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const pad = function (n) { return String(n).padStart(2, "0"); };
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
 }
 
 function badge(estado) {
@@ -201,11 +286,16 @@ els.modal.addEventListener("click", function (e) {
   if (e.target === els.modal) cerrarModal();
 });
 
+let recordatorioFechaOriginal = ""; // para detectar si el operador cambió la fecha al editar
+
 function abrirModalNuevo() {
   els.form.reset();
   document.getElementById("f-id").value = "";
+  recordatorioFechaOriginal = "";
+  els.reminderStatus.classList.add("hidden");
   els.modalTitle.textContent = "Nueva institución";
   els.formError.classList.add("hidden");
+  syncReminderPreview();
   els.modal.classList.remove("hidden");
 }
 
@@ -231,6 +321,25 @@ function abrirModalEdicion(id) {
   document.getElementById("f-quienContacto").value = r["Quién contactó"] || "";
   document.getElementById("f-notas").value = r["Notas"] || "";
 
+  const fechaLocal = isoToDatetimeLocal(r["Recordatorio Fecha"]);
+  els.recordatorioFecha.value = fechaLocal;
+  recordatorioFechaOriginal = fechaLocal;
+  els.recordatorioInstrucciones.value = r["Recordatorio Instrucciones"] || "";
+  syncReminderPreview();
+
+  const enviado = (r["Recordatorio Enviado"] || "").toString().toLowerCase();
+  if (fechaLocal && (enviado === "sí" || enviado === "si")) {
+    els.reminderStatus.textContent = "Este recordatorio ya se envió. Si cambiás la fecha, se vuelve a programar.";
+    els.reminderStatus.className = "reminder-status sent";
+    els.reminderStatus.classList.remove("hidden");
+  } else if (fechaLocal) {
+    els.reminderStatus.textContent = "Recordatorio programado, todavía no se envió.";
+    els.reminderStatus.className = "reminder-status pending";
+    els.reminderStatus.classList.remove("hidden");
+  } else {
+    els.reminderStatus.classList.add("hidden");
+  }
+
   els.modalTitle.textContent = "Editar institución";
   els.formError.classList.add("hidden");
   els.modal.classList.remove("hidden");
@@ -243,10 +352,21 @@ function cerrarModal() {
 els.form.addEventListener("submit", async function (e) {
   e.preventDefault();
   els.formError.classList.add("hidden");
+
+  const id = document.getElementById("f-id").value;
+  const recordatorioFecha = els.recordatorioFecha.value.trim();
+  const recordatorioInstrucciones = els.recordatorioInstrucciones.value.trim();
+  const operatorEmail = els.operatorEmail.value.trim();
+
+  if (recordatorioFecha && !operatorEmail) {
+    els.formError.textContent = 'Para programar un recordatorio, completá "Tu email" arriba a la derecha primero.';
+    els.formError.classList.remove("hidden");
+    return;
+  }
+
   els.btnSave.disabled = true;
   els.btnSave.textContent = "Guardando...";
 
-  const id = document.getElementById("f-id").value;
   const record = {
     "Institución": document.getElementById("f-institucion").value.trim(),
     "Área / Rubro": document.getElementById("f-area").value.trim(),
@@ -265,6 +385,24 @@ els.form.addEventListener("submit", async function (e) {
     "Quién contactó": document.getElementById("f-quienContacto").value.trim(),
     "Notas": document.getElementById("f-notas").value.trim()
   };
+
+  // Campos de recordatorio: solo los mandamos si hay algo cargado, y solo
+  // reseteamos el flag "enviado" cuando la fecha efectivamente cambió — así
+  // no revivimos recordatorios ya enviados con cada edición de la fila.
+  if (recordatorioFecha) {
+    record["Email Operador"] = operatorEmail;
+    record["Recordatorio Fecha"] = recordatorioFecha;
+    record["Recordatorio Instrucciones"] = recordatorioInstrucciones;
+    if (recordatorioFecha !== recordatorioFechaOriginal) {
+      record["Recordatorio Enviado"] = "No";
+    }
+  } else if (recordatorioFechaOriginal) {
+    // Tenía un recordatorio y lo borraron: limpiamos todo.
+    record["Email Operador"] = "";
+    record["Recordatorio Fecha"] = "";
+    record["Recordatorio Instrucciones"] = "";
+    record["Recordatorio Enviado"] = "";
+  }
 
   const payload = id
     ? { action: "update", id: id, record: record }

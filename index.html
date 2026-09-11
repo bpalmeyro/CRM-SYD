@@ -23,24 +23,30 @@
   <div id="app" class="app hidden">
     <header class="topbar">
       <h1>CRM · Soñar y Donar</h1>
-      <button id="btn-new" class="btn btn-primary">+ Nueva institución</button>
+      <div class="topbar-right">
+        <div class="operator-field" title="Se usa para mandarte los recordatorios que cargues">
+          <label for="operator-email">Tu email</label>
+          <input type="email" id="operator-email" placeholder="tu.nombre@argenprom.com.ar" autocomplete="email" />
+        </div>
+        <button id="btn-new" class="btn btn-primary">+ Nueva institución</button>
+      </div>
     </header>
 
     <section class="stats" id="stats">
       <div class="stat-card">
-        <span class="stat-value" id="stat-total">–</span>
+        <span class="stat-value" id="stat-total" data-target="0">0</span>
         <span class="stat-label">Total ONGs</span>
       </div>
       <div class="stat-card">
-        <span class="stat-value" id="stat-contactadas">–</span>
+        <span class="stat-value" id="stat-contactadas" data-target="0">0</span>
         <span class="stat-label">Contactadas</span>
       </div>
       <div class="stat-card">
-        <span class="stat-value" id="stat-pendientes">–</span>
+        <span class="stat-value" id="stat-pendientes" data-target="0">0</span>
         <span class="stat-label">Pendientes</span>
       </div>
       <div class="stat-card">
-        <span class="stat-value" id="stat-verificado">–</span>
+        <span class="stat-value" id="stat-verificado" data-target="0">0</span>
         <span class="stat-label">Contacto verificado</span>
       </div>
     </section>
@@ -66,11 +72,12 @@
             <th>Referente / Contacto</th>
             <th>Estado</th>
             <th>Contactado</th>
+            <th>Recordatorio</th>
             <th></th>
           </tr>
         </thead>
         <tbody id="table-body">
-          <tr><td colspan="7" class="loading">Cargando datos...</td></tr>
+          <tr><td colspan="8" class="loading"><span class="spinner"></span> Cargando datos...</td></tr>
         </tbody>
       </table>
     </section>
@@ -163,6 +170,24 @@
         <label>Notas / Resumen de la reunión
           <textarea id="f-notas" rows="3"></textarea>
         </label>
+
+        <hr class="modal-divider" />
+
+        <div class="reminder-block">
+          <p class="reminder-title">🔔 Recordatorio (opcional)</p>
+          <div class="grid-2">
+            <label>Recordarme el
+              <input type="datetime-local" id="f-recordatorioFecha" />
+            </label>
+            <label>Se manda a
+              <input type="email" id="f-recordatorioEmailPreview" disabled placeholder="Completá \"Tu email\" arriba" />
+            </label>
+          </div>
+          <label>Instrucciones del recordatorio
+            <textarea id="f-recordatorioInstrucciones" rows="2" placeholder="Ej: Llamar a Juan para confirmar la reunión"></textarea>
+          </label>
+          <p class="reminder-status hidden" id="reminder-status"></p>
+        </div>
 
         <div class="modal-footer">
           <span id="form-error" class="error hidden"></span>

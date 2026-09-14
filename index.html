@@ -4,6 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>CRM Soñar y Donar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,75 +13,106 @@
   <!-- Pantalla de acceso -->
   <div id="gate" class="gate">
     <div class="gate-card">
+      <div class="gate-logo">★</div>
       <h1>Soñar y Donar</h1>
       <p>Ingresá el código de acceso para entrar al CRM.</p>
       <input type="password" id="access-code-input" placeholder="Código de acceso" autocomplete="off" />
-      <button id="access-code-btn">Entrar</button>
+      <button id="access-code-btn" class="btn btn-primary">Entrar</button>
       <p id="access-error" class="error hidden">Código incorrecto.</p>
     </div>
   </div>
 
   <!-- App -->
   <div id="app" class="app hidden">
+
     <header class="topbar">
-      <h1>CRM · Soñar y Donar</h1>
+      <div class="brand">
+        <div class="brand-mark">★</div>
+        <h1>CRM Soñar y Donar
+          <span>Pipeline de fundaciones y ONGs</span>
+        </h1>
+      </div>
       <div class="topbar-right">
         <div class="operator-field" title="Se usa para mandarte los recordatorios que cargues">
-          <label for="operator-email">Tu email</label>
-          <input type="email" id="operator-email" placeholder="tu.nombre@argenprom.com.ar" autocomplete="email" />
+          <input type="email" id="operator-email" placeholder="Tu email" autocomplete="email" />
         </div>
+        <button id="btn-refresh" class="btn btn-ghost" title="Recargar datos">↻</button>
         <button id="btn-new" class="btn btn-primary">+ Nueva institución</button>
       </div>
     </header>
 
-    <section class="stats" id="stats">
-      <div class="stat-card">
-        <span class="stat-value" id="stat-total" data-target="0">0</span>
-        <span class="stat-label">Total ONGs</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-value" id="stat-contactadas" data-target="0">0</span>
-        <span class="stat-label">Contactadas</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-value" id="stat-pendientes" data-target="0">0</span>
-        <span class="stat-label">Pendientes</span>
-      </div>
-      <div class="stat-card">
-        <span class="stat-value" id="stat-verificado" data-target="0">0</span>
-        <span class="stat-label">Contacto verificado</span>
-      </div>
+    <!-- Panel de acción: recordatorios -->
+    <section class="today" id="today-panel">
+      <button class="today-card" data-rem="overdue">
+        <div class="today-icon red">⏰</div>
+        <div class="today-body">
+          <div class="today-value" id="rem-overdue">0</div>
+          <div class="today-label">Recordatorios vencidos</div>
+        </div>
+      </button>
+      <button class="today-card" data-rem="today">
+        <div class="today-icon amber">📌</div>
+        <div class="today-body">
+          <div class="today-value" id="rem-today">0</div>
+          <div class="today-label">Para hoy</div>
+        </div>
+      </button>
+      <button class="today-card" data-rem="week">
+        <div class="today-icon blue">📅</div>
+        <div class="today-body">
+          <div class="today-value" id="rem-week">0</div>
+          <div class="today-label">Próximos 7 días</div>
+        </div>
+      </button>
     </section>
 
-    <section class="filters">
-      <input type="text" id="search" placeholder="Buscar por institución, referente, email..." />
+    <!-- Pipeline por estado -->
+    <section class="pipeline">
+      <div class="pipeline-head">
+        <div class="pipeline-total">
+          <strong id="stat-total">0</strong>
+          <span>instituciones en total</span>
+        </div>
+        <div class="pipeline-hint">Tocá un estado para filtrar</div>
+      </div>
+      <div class="pipeline-bar" id="pipeline-bar"></div>
+      <div class="pipeline-legend" id="pipeline-legend"></div>
+    </section>
+
+    <!-- Filtros -->
+    <section class="toolbar">
+      <div class="search-wrap">
+        <input type="text" id="search" placeholder="Buscar por institución, referente, director, email..." />
+      </div>
       <select id="filter-area">
         <option value="">Todas las áreas</option>
       </select>
       <select id="filter-estado">
         <option value="">Todos los estados</option>
       </select>
-      <button id="btn-refresh" class="btn btn-ghost" title="Recargar datos">↻ Actualizar</button>
+      <span class="result-count" id="result-count"></span>
     </section>
 
+    <!-- Tabla -->
     <section class="table-wrap">
-      <table id="table">
-        <thead>
-          <tr>
-            <th>Institución</th>
-            <th>Área</th>
-            <th>Director / Autoridad</th>
-            <th>Referente / Contacto</th>
-            <th>Estado</th>
-            <th>Contactado</th>
-            <th>Recordatorio</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="table-body">
-          <tr><td colspan="8" class="loading"><span class="spinner"></span> Cargando datos...</td></tr>
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table id="table">
+          <thead>
+            <tr>
+              <th>Institución</th>
+              <th>Director / Autoridad</th>
+              <th>Referente</th>
+              <th>Contacto</th>
+              <th>Estado</th>
+              <th>Recordatorio</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="table-body">
+            <tr><td colspan="7" class="loading"><span class="spinner"></span> Cargando datos...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
   </div>
 
@@ -90,107 +123,118 @@
         <h2 id="modal-title">Nueva institución</h2>
         <button id="modal-close" class="btn-icon">✕</button>
       </div>
-      <form id="form-record" class="modal-body">
-        <input type="hidden" id="f-id" />
+      <form id="form-record">
+        <div class="modal-body">
 
-        <label>Institución *
-          <input type="text" id="f-institucion" required />
-        </label>
+          <p class="form-section-title">Institución</p>
 
-        <div class="grid-2">
-          <label>Área / Rubro
-            <input type="text" id="f-area" />
+          <label>Nombre *
+            <input type="text" id="f-institucion" required />
           </label>
-          <label>Ciudad
-            <input type="text" id="f-ciudad" />
-          </label>
-        </div>
 
-        <label>Descripción
-          <textarea id="f-descripcion" rows="2"></textarea>
-        </label>
+          <div class="grid-2">
+            <label>Área / Rubro
+              <input type="text" id="f-area" />
+            </label>
+            <label>Ciudad
+              <input type="text" id="f-ciudad" />
+            </label>
+          </div>
 
-        <div class="grid-2">
-          <label>Referente
-            <input type="text" id="f-referente" />
+          <label>Descripción
+            <textarea id="f-descripcion" rows="2"></textarea>
           </label>
-          <label>Director / Autoridad
-            <input type="text" id="f-director" />
-          </label>
-        </div>
 
-        <div class="grid-2">
-          <label>Email
-            <input type="email" id="f-email" />
-          </label>
-          <label>Teléfono
-            <input type="text" id="f-telefono" />
-          </label>
-        </div>
+          <div class="grid-2">
+            <label>Alcance
+              <input type="text" id="f-alcance" placeholder="Nacional / Regional / Local" />
+            </label>
+            <label>Tipos de eventos
+              <input type="text" id="f-tiposEventos" />
+            </label>
+          </div>
 
-        <div class="grid-2">
+          <hr class="modal-divider" />
+          <p class="form-section-title">Personas y contacto</p>
+
+          <div class="grid-2">
+            <label>Director / Autoridad
+              <input type="text" id="f-director" placeholder="Máxima autoridad de la ONG" />
+            </label>
+            <label>Referente
+              <input type="text" id="f-referente" placeholder="Con quién hablamos nosotros" />
+            </label>
+          </div>
+
+          <div class="grid-2">
+            <label>Email
+              <input type="email" id="f-email" />
+            </label>
+            <label>Teléfono
+              <input type="text" id="f-telefono" />
+            </label>
+          </div>
+
           <label>Web
             <input type="text" id="f-web" />
           </label>
-          <label>Alcance
-            <input type="text" id="f-alcance" placeholder="Nacional / Regional / Local" />
-          </label>
-        </div>
 
-        <label>Tipos de eventos de recaudación
-          <input type="text" id="f-tiposEventos" />
-        </label>
+          <hr class="modal-divider" />
+          <p class="form-section-title">Seguimiento</p>
 
-        <div class="grid-2">
-          <label>Contactado
-            <select id="f-contactado">
-              <option value="No">No</option>
-              <option value="Sí">Sí</option>
-            </select>
-          </label>
-          <label>Estado
-            <select id="f-estado">
-              <option value="Pendiente">Pendiente</option>
-              <option value="En proceso">En proceso</option>
-              <option value="Contacto verificado">Contacto verificado</option>
-              <option value="Descartado">Descartado</option>
-            </select>
-          </label>
-        </div>
-
-        <div class="grid-2">
-          <label>Fecha de contacto
-            <input type="text" id="f-fechaContacto" placeholder="dd/mm/aaaa" />
-          </label>
-          <label>Quién contactó
-            <input type="text" id="f-quienContacto" />
-          </label>
-        </div>
-
-        <label>Notas / Resumen de la reunión
-          <textarea id="f-notas" rows="3"></textarea>
-        </label>
-
-        <hr class="modal-divider" />
-
-        <div class="reminder-block">
-          <p class="reminder-title">🔔 Recordatorio (opcional)</p>
           <div class="grid-2">
-            <label>Recordarme el
-              <input type="datetime-local" id="f-recordatorioFecha" />
+            <label>Estado
+              <select id="f-estado">
+                <option value="Pendiente">Pendiente</option>
+                <option value="En proceso">En proceso</option>
+                <option value="Contacto verificado">Contacto verificado</option>
+                <option value="A completar">A completar</option>
+                <option value="Descartado">Descartado</option>
+              </select>
             </label>
-            <label>Se manda a
-              <input type="email" id="f-recordatorioEmailPreview" disabled placeholder="Completá \"Tu email\" arriba" />
+            <label>Contactado
+              <select id="f-contactado">
+                <option value="No">No</option>
+                <option value="Sí">Sí</option>
+              </select>
             </label>
           </div>
-          <label>Instrucciones del recordatorio
-            <textarea id="f-recordatorioInstrucciones" rows="2" placeholder="Ej: Llamar a Juan para confirmar la reunión"></textarea>
+
+          <div class="grid-2">
+            <label>Fecha de contacto
+              <input type="text" id="f-fechaContacto" placeholder="dd/mm/aaaa" />
+            </label>
+            <label>Quién contactó
+              <input type="text" id="f-quienContacto" />
+            </label>
+          </div>
+
+          <label>Notas / Resumen de la reunión
+            <textarea id="f-notas" rows="3"></textarea>
           </label>
-          <p class="reminder-status hidden" id="reminder-status"></p>
+
+          <div class="reminder-block">
+            <p class="reminder-title">🔔 Recordatorio</p>
+            <div class="grid-2">
+              <label>Recordarme el
+                <input type="datetime-local" id="f-recordatorioFecha" />
+              </label>
+              <label>Invitación de Calendar a
+                <input type="email" id="f-recordatorioEmailPreview" disabled placeholder="Completá tu email arriba" />
+              </label>
+            </div>
+            <label>Instrucciones del recordatorio
+              <textarea id="f-recordatorioInstrucciones" rows="2" placeholder="Ej: Llamar a Juan para confirmar la reunión"></textarea>
+            </label>
+            <p class="reminder-status hidden" id="reminder-status"></p>
+          </div>
+
+          <input type="hidden" id="f-id" />
         </div>
 
         <div class="modal-footer">
           <span id="form-error" class="error hidden"></span>
+          <button type="button" class="btn btn-ghost" id="btn-cancel">Cancelar</button>
           <button type="submit" class="btn btn-primary" id="btn-save">Guardar</button>
         </div>
       </form>

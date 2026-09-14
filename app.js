@@ -84,12 +84,34 @@ function tryUnlock() {
 
 // ---------------- Carga de datos ----------------
 
+// El Web App de Apps Script a veces tarda mucho (o incluso responde error) en
+// el primer pedido después de un rato sin actividad ("cold start" — no es
+// algo que podamos evitar desde acá, es infraestructura de Google). Como el
+// siguiente intento casi siempre anda bien enseguida, reintentamos antes de
+// mostrar un error real.
+async function fetchConReintento(opts, intentos) {
+  const maxIntentos = intentos || 2;
+  let ultimoError;
+  for (let i = 0; i < maxIntentos; i++) {
+    try {
+      const res = await fetch(CONFIG.API_URL, opts);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Error desconocido");
+      return json;
+    } catch (err) {
+      ultimoError = err;
+      if (i < maxIntentos - 1) {
+        await new Promise(function (r) { setTimeout(r, 1500); });
+      }
+    }
+  }
+  throw ultimoError;
+}
+
 async function cargarDatos() {
   els.tableBody.innerHTML = '<tr><td colspan="8" class="loading"><span class="spinner"></span> Cargando datos...</td></tr>';
   try {
-    const res = await fetch(CONFIG.API_URL, { method: "GET" });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "Error desconocido");
+    const json = await fetchConReintento({ method: "GET" });
     RECORDS = json.data;
     poblarFiltros();
     renderStats();
@@ -349,7 +371,28 @@ function cerrarModal() {
   els.modal.classList.add("hidden");
 }
 
-els.form.addEventListener("submit", async function (e) {
+// ---------------- Toasts (avisos de guardado en segundo plano) ----------------
+
+const toastContainer = document.getElementById("toast-container");
+
+function showToast(message, type) {
+  if (!toastContainer) return;
+  const toast = document.createElement("div");
+  toast.className = "toast" + (type ? " toast-" + type : "");
+  toast.textContent = message;
+  toastContainer.appendChild(toast);
+
+  requestAnimationFrame(function () { toast.classList.add("show"); });
+
+  setTimeout(function () {
+    toast.classList.remove("show");
+    setTimeout(function () { toast.remove(); }, 250);
+  }, 4500);
+}
+
+let tempIdCounter = 0;
+
+els.form.addEventListener("submit", function (e) {
   e.preventDefault();
   els.formError.classList.add("hidden");
 
@@ -363,9 +406,6 @@ els.form.addEventListener("submit", async function (e) {
     els.formError.classList.remove("hidden");
     return;
   }
-
-  els.btnSave.disabled = true;
-  els.btnSave.textContent = "Guardando...";
 
   const record = {
     "Institución": document.getElementById("f-institucion").value.trim(),
@@ -408,26 +448,69 @@ els.form.addEventListener("submit", async function (e) {
     ? { action: "update", id: id, record: record }
     : { action: "create", record: record };
 
+  const nombreInstitucion = record["Institución"] || "el registro";
+
+  // Guardado optimista: actualizamos la tabla YA (sin esperar al backend) y
+  // cerramos el modal para poder seguir editando de una. El pedido real
+  // sigue en segundo plano — si tarda o falla, se avisa con un toast en vez
+  // de dejar la pantalla trabada en "Guardando...".
+  const rollback = { id: id, previousRecord: null, tempId: null };
+
+  if (id) {
+    const idx = RECORDS.findIndex(function (r) { return String(r["ID"]) === String(id); });
+    if (idx !== -1) {
+      rollback.previousRecord = Object.assign({}, RECORDS[idx]);
+      RECORDS[idx] = Object.assign({}, RECORDS[idx], record);
+    }
+  } else {
+    rollback.tempId = "tmp-" + (++tempIdCounter);
+    RECORDS.push(Object.assign({ "ID": rollback.tempId }, record));
+  }
+  renderStats();
+  renderTabla();
+
+  cerrarModal();
+  guardarEnSegundoPlano(payload, nombreInstitucion, rollback);
+});
+
+async function guardarEnSegundoPlano(payload, nombreInstitucion, rollback) {
   try {
     // OJO: no seteamos "Content-Type: application/json" a propósito.
     // Si lo hacemos, el navegador dispara un preflight OPTIONS que Apps
     // Script no responde, y el request se cae por CORS. Con el content-type
     // por default (text/plain) evitamos el preflight; Apps Script igual
     // puede leer el body y hacer JSON.parse sin problema.
-    const res = await fetch(CONFIG.API_URL, {
-      method: "POST",
-      body: JSON.stringify(payload)
-    });
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error || "Error desconocido");
+    //
+    // Reintentamos automáticamente SOLO si es "update": es idempotente (volver
+    // a mandar los mismos datos no rompe nada), así absorbemos el cold-start
+    // típico de Apps Script sin mostrar un error al pedo. "create" NO se
+    // reintenta solo: si la primera petición en realidad sí llegó a crear la
+    // fila del lado del servidor y nosotros no nos enteramos por un cold
+    // start, reintentar crearía una institución duplicada — mejor mostrar el
+    // error real y que el usuario decida si reintenta a mano.
+    const postOpts = { method: "POST", body: JSON.stringify(payload) };
+    const json = payload.action === "update"
+      ? await fetchConReintento(postOpts)
+      : await (async function () {
+          const res = await fetch(CONFIG.API_URL, postOpts);
+          const j = await res.json();
+          if (!j.ok) throw new Error(j.error || "Error desconocido");
+          return j;
+        })();
 
-    cerrarModal();
+    showToast((payload.action === "create" ? "Creado: " : "Guardado: ") + nombreInstitucion, "success");
     await cargarDatos();
   } catch (err) {
-    els.formError.textContent = "No se pudo guardar: " + err.message;
-    els.formError.classList.remove("hidden");
-  } finally {
-    els.btnSave.disabled = false;
-    els.btnSave.textContent = "Guardar";
+    // Se cayó de verdad: revertimos el cambio optimista para no mentirle a
+    // la tabla, y avisamos con un toast (el modal ya está cerrado).
+    if (rollback.id && rollback.previousRecord) {
+      const idx = RECORDS.findIndex(function (r) { return String(r["ID"]) === String(rollback.id); });
+      if (idx !== -1) RECORDS[idx] = rollback.previousRecord;
+    } else if (rollback.tempId) {
+      RECORDS = RECORDS.filter(function (r) { return r["ID"] !== rollback.tempId; });
+    }
+    renderStats();
+    renderTabla();
+    showToast('No se pudo guardar "' + nombreInstitucion + '": ' + err.message, "error");
   }
-});
+}

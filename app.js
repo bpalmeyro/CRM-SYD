@@ -2,7 +2,7 @@
 // Habla con el Apps Script (CONFIG.API_URL) definido en config.js.
 
 let RECORDS = [];
-let unlocked = false;
+let filtroRecordatorio = ""; // "", "overdue", "today", "week"
 
 const OPERATOR_STORAGE_KEY = "crmOperatorEmail";
 
@@ -20,17 +20,23 @@ const els = {
   filterEstado: document.getElementById("filter-estado"),
   btnRefresh: document.getElementById("btn-refresh"),
   btnNew: document.getElementById("btn-new"),
+  resultCount: document.getElementById("result-count"),
 
   tableBody: document.getElementById("table-body"),
 
   statTotal: document.getElementById("stat-total"),
-  statContactadas: document.getElementById("stat-contactadas"),
-  statPendientes: document.getElementById("stat-pendientes"),
-  statVerificado: document.getElementById("stat-verificado"),
+  pipelineBar: document.getElementById("pipeline-bar"),
+  pipelineLegend: document.getElementById("pipeline-legend"),
+
+  todayPanel: document.getElementById("today-panel"),
+  remOverdue: document.getElementById("rem-overdue"),
+  remToday: document.getElementById("rem-today"),
+  remWeek: document.getElementById("rem-week"),
 
   modal: document.getElementById("modal"),
   modalTitle: document.getElementById("modal-title"),
   modalClose: document.getElementById("modal-close"),
+  btnCancel: document.getElementById("btn-cancel"),
   form: document.getElementById("form-record"),
   formError: document.getElementById("form-error"),
   btnSave: document.getElementById("btn-save"),
@@ -38,7 +44,9 @@ const els = {
   recordatorioFecha: document.getElementById("f-recordatorioFecha"),
   recordatorioInstrucciones: document.getElementById("f-recordatorioInstrucciones"),
   recordatorioEmailPreview: document.getElementById("f-recordatorioEmailPreview"),
-  reminderStatus: document.getElementById("reminder-status")
+  reminderStatus: document.getElementById("reminder-status"),
+
+  toastContainer: document.getElementById("toast-container")
 };
 
 // ---------------- Operador (email persistente en localStorage) ----------------
@@ -46,6 +54,7 @@ const els = {
 (function initOperatorEmail() {
   const saved = localStorage.getItem(OPERATOR_STORAGE_KEY) || "";
   els.operatorEmail.value = saved;
+  els.operatorEmail.classList.toggle("saved", saved !== "");
   syncReminderPreview();
 })();
 
@@ -58,9 +67,7 @@ els.operatorEmail.addEventListener("input", function () {
 function syncReminderPreview() {
   const email = els.operatorEmail.value.trim();
   els.recordatorioEmailPreview.value = email || "";
-  els.recordatorioEmailPreview.placeholder = email
-    ? ""
-    : 'Completá "Tu email" arriba';
+  els.recordatorioEmailPreview.placeholder = email ? "" : "Completá tu email arriba";
 }
 
 // ---------------- Acceso ----------------
@@ -71,9 +78,7 @@ els.accessInput.addEventListener("keydown", function (e) {
 });
 
 function tryUnlock() {
-  const val = els.accessInput.value.trim();
-  if (val === CONFIG.ACCESS_CODE) {
-    unlocked = true;
+  if (els.accessInput.value.trim() === CONFIG.ACCESS_CODE) {
     els.gate.classList.add("hidden");
     els.app.classList.remove("hidden");
     cargarDatos();
@@ -84,11 +89,11 @@ function tryUnlock() {
 
 // ---------------- Carga de datos ----------------
 
-// El Web App de Apps Script a veces tarda mucho (o incluso responde error) en
-// el primer pedido después de un rato sin actividad ("cold start" — no es
-// algo que podamos evitar desde acá, es infraestructura de Google). Como el
-// siguiente intento casi siempre anda bien enseguida, reintentamos antes de
-// mostrar un error real.
+// El Web App de Apps Script a veces tarda mucho (o responde error) en el
+// primer pedido después de un rato sin actividad ("cold start" — es
+// infraestructura de Google, no algo que podamos evitar desde acá). Como el
+// siguiente intento casi siempre anda bien, reintentamos antes de mostrar un
+// error real.
 async function fetchConReintento(opts, intentos) {
   const maxIntentos = intentos || 2;
   let ultimoError;
@@ -109,19 +114,25 @@ async function fetchConReintento(opts, intentos) {
 }
 
 async function cargarDatos() {
-  els.tableBody.innerHTML = '<tr><td colspan="8" class="loading"><span class="spinner"></span> Cargando datos...</td></tr>';
+  els.tableBody.innerHTML =
+    '<tr><td colspan="7" class="loading"><span class="spinner"></span> Cargando datos...</td></tr>';
   try {
     const json = await fetchConReintento({ method: "GET" });
     RECORDS = json.data;
     poblarFiltros();
-    renderStats();
-    renderTabla();
+    renderTodo();
   } catch (err) {
     els.tableBody.innerHTML =
-      '<tr><td colspan="8" class="empty">No se pudo cargar la información. Revisá que la URL en config.js sea correcta. (' +
-      err.message +
-      ")</td></tr>";
+      '<tr><td colspan="7" class="empty"><span class="empty-title">No se pudo cargar la información</span>' +
+      escapeHtml(err.message) +
+      "</td></tr>";
   }
+}
+
+function renderTodo() {
+  renderRecordatoriosPanel();
+  renderPipeline();
+  renderTabla();
 }
 
 els.btnRefresh.addEventListener("click", cargarDatos);
@@ -136,7 +147,6 @@ function poblarFiltros() {
     if (r["Área / Rubro"]) areas.add(r["Área / Rubro"]);
     if (r["Estado"]) estados.add(r["Estado"]);
   });
-
   fillSelect(els.filterArea, areas, "Todas las áreas");
   fillSelect(els.filterEstado, estados, "Todos los estados");
 }
@@ -149,31 +159,151 @@ function fillSelect(select, valuesSet, placeholder) {
   opt0.textContent = placeholder;
   select.appendChild(opt0);
 
-  Array.from(valuesSet)
-    .sort()
-    .forEach(function (v) {
-      const opt = document.createElement("option");
-      opt.value = v;
-      opt.textContent = v;
-      select.appendChild(opt);
-    });
+  Array.from(valuesSet).sort().forEach(function (v) {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v;
+    select.appendChild(opt);
+  });
 
   select.value = current;
 }
 
-// ---------------- Stats (con count-up) ----------------
+// ---------------- Recordatorios: clasificación ----------------
 
-function renderStats() {
-  const total = RECORDS.length;
-  const contactadas = RECORDS.filter(function (r) { return r["Contactado"] === "Sí"; }).length;
-  const pendientes = RECORDS.filter(function (r) { return r["Estado"] === "Pendiente"; }).length;
-  const verificado = RECORDS.filter(function (r) { return r["Estado"] === "Contacto verificado"; }).length;
-
-  animarNumero(els.statTotal, total);
-  animarNumero(els.statContactadas, contactadas);
-  animarNumero(els.statPendientes, pendientes);
-  animarNumero(els.statVerificado, verificado);
+function parseRecordatorio(valor) {
+  if (!valor) return null;
+  const d = new Date(valor);
+  return isNaN(d.getTime()) ? null : d;
 }
+
+// Diferencia en días de calendario (no en horas): hoy = 0, mañana = 1.
+function diasDeDiferencia(fecha, ahora) {
+  const a = new Date(fecha.getFullYear(), fecha.getMonth(), fecha.getDate());
+  const b = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+  return Math.round((a - b) / 86400000);
+}
+
+function clasificarRecordatorio(r) {
+  const fecha = parseRecordatorio(r["Recordatorio Fecha"]);
+  if (!fecha) return null;
+
+  const ahora = new Date();
+  const dias = diasDeDiferencia(fecha, ahora);
+
+  let tipo;
+  if (fecha < ahora && dias < 0) tipo = "overdue";
+  else if (dias === 0) tipo = fecha < ahora ? "overdue" : "today";
+  else if (dias <= 7) tipo = "week";
+  else tipo = "far";
+
+  return { fecha: fecha, dias: dias, tipo: tipo };
+}
+
+function etiquetaRecordatorio(info) {
+  const hora = pad(info.fecha.getHours()) + ":" + pad(info.fecha.getMinutes());
+  if (info.dias < 0) {
+    const d = Math.abs(info.dias);
+    return "Venció hace " + d + (d === 1 ? " día" : " días");
+  }
+  if (info.dias === 0) return (info.fecha < new Date() ? "Venció hoy " : "Hoy ") + hora;
+  if (info.dias === 1) return "Mañana " + hora;
+  if (info.dias <= 7) return "En " + info.dias + " días";
+  return pad(info.fecha.getDate()) + "/" + pad(info.fecha.getMonth() + 1);
+}
+
+function pad(n) { return String(n).padStart(2, "0"); }
+
+function renderRecordatoriosPanel() {
+  let overdue = 0, hoy = 0, semana = 0;
+
+  RECORDS.forEach(function (r) {
+    const info = clasificarRecordatorio(r);
+    if (!info) return;
+    if (info.tipo === "overdue") overdue++;
+    else if (info.tipo === "today") hoy++;
+    else if (info.tipo === "week") semana++;
+  });
+
+  els.remOverdue.textContent = overdue;
+  els.remToday.textContent = hoy;
+  els.remWeek.textContent = semana;
+
+  els.todayPanel.querySelectorAll(".today-card").forEach(function (card) {
+    const tipo = card.getAttribute("data-rem");
+    const valor = tipo === "overdue" ? overdue : tipo === "today" ? hoy : semana;
+    card.classList.toggle("muted", valor === 0);
+    card.classList.toggle("active", filtroRecordatorio === tipo);
+  });
+}
+
+els.todayPanel.addEventListener("click", function (e) {
+  const card = e.target.closest(".today-card");
+  if (!card) return;
+  const tipo = card.getAttribute("data-rem");
+  filtroRecordatorio = filtroRecordatorio === tipo ? "" : tipo;
+  renderRecordatoriosPanel();
+  renderTabla();
+});
+
+// ---------------- Pipeline por estado ----------------
+
+const ESTADO_CLASES = {
+  "Pendiente": { badge: "badge-pendiente", color: "var(--amber)" },
+  "En proceso": { badge: "badge-proceso", color: "var(--accent)" },
+  "Contacto verificado": { badge: "badge-verificado", color: "var(--green)" },
+  "Descartado": { badge: "badge-descartado", color: "var(--red)" },
+  "A completar": { badge: "badge-otro", color: "var(--violet)" }
+};
+
+function estiloEstado(estado) {
+  return ESTADO_CLASES[estado] || { badge: "badge-otro", color: "var(--text-3)" };
+}
+
+function renderPipeline() {
+  const total = RECORDS.length;
+  animarNumero(els.statTotal, total);
+
+  const conteos = {};
+  RECORDS.forEach(function (r) {
+    const estado = r["Estado"] || "Sin estado";
+    conteos[estado] = (conteos[estado] || 0) + 1;
+  });
+
+  const entradas = Object.keys(conteos)
+    .map(function (estado) { return { estado: estado, n: conteos[estado] }; })
+    .sort(function (a, b) { return b.n - a.n; });
+
+  els.pipelineBar.innerHTML = entradas
+    .map(function (e) {
+      const pct = total ? (e.n / total) * 100 : 0;
+      return (
+        "<div class='pipeline-seg' style='width:" + pct.toFixed(2) + "%;background:" +
+        estiloEstado(e.estado).color + "' title='" + escapeHtml(e.estado) + ": " + e.n + "'></div>"
+      );
+    })
+    .join("");
+
+  els.pipelineLegend.innerHTML = entradas
+    .map(function (e) {
+      const activo = els.filterEstado.value === e.estado ? " active" : "";
+      return (
+        "<button class='legend-item" + activo + "' data-estado='" + escapeHtml(e.estado) + "'>" +
+        "<span class='legend-dot' style='background:" + estiloEstado(e.estado).color + "'></span>" +
+        escapeHtml(e.estado) + " <strong>" + e.n + "</strong></button>"
+      );
+    })
+    .join("");
+}
+
+els.pipelineLegend.addEventListener("click", function (e) {
+  const item = e.target.closest(".legend-item");
+  if (!item) return;
+  const estado = item.getAttribute("data-estado");
+  els.filterEstado.value = els.filterEstado.value === estado ? "" : estado;
+  renderPipeline();
+  renderTabla();
+});
 
 function animarNumero(el, target) {
   const start = Number(el.getAttribute("data-target")) || 0;
@@ -190,9 +320,8 @@ function animarNumero(el, target) {
 
   function tick(now) {
     const progress = Math.min((now - startTime) / duration, 1);
-    const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
-    const value = Math.round(start + (target - start) * eased);
-    el.textContent = value;
+    const eased = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(start + (target - start) * eased);
     if (progress < 1) requestAnimationFrame(tick);
   }
   requestAnimationFrame(tick);
@@ -208,104 +337,138 @@ function renderTabla() {
   const filtered = RECORDS.filter(function (r) {
     if (area && r["Área / Rubro"] !== area) return false;
     if (estado && r["Estado"] !== estado) return false;
+
+    if (filtroRecordatorio) {
+      const info = clasificarRecordatorio(r);
+      if (!info || info.tipo !== filtroRecordatorio) return false;
+    }
+
     if (q) {
       const haystack = [
-        r["Institución"],
-        r["Referente"],
-        r["Director / Autoridad"],
-        r["Email"],
-        r["Ciudad"]
-      ]
-        .join(" ")
-        .toLowerCase();
+        r["Institución"], r["Referente"], r["Director / Autoridad"],
+        r["Email"], r["Ciudad"], r["Área / Rubro"], r["Notas"]
+      ].join(" ").toLowerCase();
       if (!haystack.includes(q)) return false;
     }
     return true;
   });
 
+  els.resultCount.textContent =
+    filtered.length === RECORDS.length
+      ? RECORDS.length + " instituciones"
+      : filtered.length + " de " + RECORDS.length;
+
   if (filtered.length === 0) {
-    els.tableBody.innerHTML = '<tr><td colspan="8" class="empty">No hay resultados con estos filtros.</td></tr>';
+    els.tableBody.innerHTML =
+      '<tr><td colspan="7" class="empty"><span class="empty-title">Sin resultados</span>' +
+      "Probá cambiando los filtros o el texto de búsqueda.</td></tr>";
     return;
   }
 
-  els.tableBody.innerHTML = filtered
-    .map(function (r) {
-      return (
-        "<tr>" +
-        "<td><strong>" + escapeHtml(r["Institución"]) + "</strong></td>" +
-        "<td>" + escapeHtml(r["Área / Rubro"]) + "</td>" +
-        "<td>" + escapeHtml(r["Director / Autoridad"] || "—") + "</td>" +
-        "<td class='contact-cell'>" +
-        "<strong>" + escapeHtml(r["Referente"] || "—") + "</strong>" +
-        "<span>" + escapeHtml(r["Email"] || r["Teléfono"] || "") + "</span>" +
-        "</td>" +
-        "<td>" + badge(r["Estado"]) + "</td>" +
-        "<td>" + escapeHtml(r["Contactado"]) + "</td>" +
-        "<td>" + reminderCell(r) + "</td>" +
-        "<td class='row-actions'><button data-id='" + r["ID"] + "'>Editar</button></td>" +
-        "</tr>"
-      );
-    })
-    .join("");
+  els.tableBody.innerHTML = filtered.map(filaHtml).join("");
 
-  document.querySelectorAll(".row-actions button").forEach(function (btn) {
+  els.tableBody.querySelectorAll(".row-actions button").forEach(function (btn) {
     btn.addEventListener("click", function () {
       abrirModalEdicion(btn.getAttribute("data-id"));
     });
   });
 }
 
-function reminderCell(r) {
-  const fecha = r["Recordatorio Fecha"];
-  if (!fecha) return "<span class='reminder-cell'>—</span>";
-  const enviado = (r["Recordatorio Enviado"] || "").toString().toLowerCase();
-  const sent = enviado === "sí" || enviado === "si";
-  const label = formatearFechaCorta(fecha);
-  return sent
-    ? "<span class='reminder-cell sent'>✓ enviado " + label + "</span>"
-    : "<span class='reminder-cell pending'>🔔 " + label + "</span>";
+function filaHtml(r) {
+  const info = clasificarRecordatorio(r);
+  let rowClass = "";
+  if (info && info.tipo === "overdue") rowClass = " class='has-overdue'";
+  else if (info && info.tipo === "today") rowClass = " class='has-today'";
+
+  const estado = r["Estado"] || "Pendiente";
+  const contactado = (r["Contactado"] || "").toString().toLowerCase();
+  const fueContactado = contactado === "sí" || contactado === "si";
+
+  return (
+    "<tr" + rowClass + ">" +
+    "<td class='cell-inst'>" +
+      "<strong>" + escapeHtml(r["Institución"]) + "</strong>" +
+      (r["Área / Rubro"] ? "<span>" + escapeHtml(r["Área / Rubro"]) + "</span>" : "") +
+    "</td>" +
+    "<td class='cell-person' data-label='Director'>" + personaHtml(r["Director / Autoridad"]) + "</td>" +
+    "<td class='cell-person' data-label='Referente'>" + personaHtml(r["Referente"]) + "</td>" +
+    "<td data-label='Contacto'>" + contactoHtml(r) + "</td>" +
+    "<td data-label='Estado'>" +
+      "<span class='badge " + estiloEstado(estado).badge + "'>" + escapeHtml(estado) + "</span>" +
+      (fueContactado ? "<span class='contactado-flag'>✓ contactado</span>" : "") +
+    "</td>" +
+    "<td data-label='Recordatorio'>" + recordatorioHtml(info) + "</td>" +
+    "<td class='row-actions'><button data-id='" + escapeHtml(r["ID"]) + "'>Editar</button></td>" +
+    "</tr>"
+  );
 }
 
-function formatearFechaCorta(iso) {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return String(iso);
-  const pad = function (n) { return String(n).padStart(2, "0"); };
-  return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+function personaHtml(valor) {
+  const v = (valor || "").toString().trim();
+  return v ? escapeHtml(v) : "<span class='muted'>—</span>";
 }
 
-function isoToDatetimeLocal(iso) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "";
-  const pad = function (n) { return String(n).padStart(2, "0"); };
-  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+function contactoHtml(r) {
+  const email = (r["Email"] || "").toString().trim();
+  const tel = (r["Teléfono"] || "").toString().trim();
+  const web = (r["Web"] || "").toString().trim();
+
+  const botones = [];
+  if (email) {
+    botones.push(
+      "<a class='contact-btn' href='mailto:" + escapeAttr(email) + "' title='" + escapeAttr(email) + "'>✉</a>"
+    );
+  }
+  if (tel) {
+    botones.push(
+      "<a class='contact-btn' href='tel:" + escapeAttr(tel.replace(/[^\d+]/g, "")) +
+      "' title='" + escapeAttr(tel) + "'>✆</a>"
+    );
+  }
+  if (web) {
+    const url = /^https?:\/\//i.test(web) ? web : "https://" + web;
+    botones.push(
+      "<a class='contact-btn' href='" + escapeAttr(url) +
+      "' target='_blank' rel='noopener' title='" + escapeAttr(web) + "'>↗</a>"
+    );
+  }
+
+  return botones.length
+    ? "<div class='contact-actions'>" + botones.join("") + "</div>"
+    : "<span class='contact-empty'>—</span>";
 }
 
-function badge(estado) {
-  const map = {
-    "Pendiente": "badge-pendiente",
-    "En proceso": "badge-proceso",
-    "Contacto verificado": "badge-verificado",
-    "Descartado": "badge-descartado"
-  };
-  const cls = map[estado] || "badge-pendiente";
-  return "<span class='badge " + cls + "'>" + escapeHtml(estado || "Pendiente") + "</span>";
+function recordatorioHtml(info) {
+  if (!info) return "<span class='rem-none'>—</span>";
+  return "<span class='rem-pill " + info.tipo + "'>🔔 " + escapeHtml(etiquetaRecordatorio(info)) + "</span>";
 }
 
 function escapeHtml(str) {
   if (str === undefined || str === null) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escapeAttr(str) {
+  return escapeHtml(str).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function isoToDatetimeLocal(iso) {
+  const d = parseRecordatorio(iso);
+  if (!d) return "";
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+    "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
 }
 
 // ---------------- Modal alta/edición ----------------
 
-els.btnNew.addEventListener("click", function () { abrirModalNuevo(); });
+els.btnNew.addEventListener("click", abrirModalNuevo);
 els.modalClose.addEventListener("click", cerrarModal);
+els.btnCancel.addEventListener("click", cerrarModal);
 els.modal.addEventListener("click", function (e) {
   if (e.target === els.modal) cerrarModal();
+});
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape" && !els.modal.classList.contains("hidden")) cerrarModal();
 });
 
 let recordatorioFechaOriginal = ""; // para detectar si el operador cambió la fecha al editar
@@ -319,6 +482,7 @@ function abrirModalNuevo() {
   els.formError.classList.add("hidden");
   syncReminderPreview();
   els.modal.classList.remove("hidden");
+  document.getElementById("f-institucion").focus();
 }
 
 function abrirModalEdicion(id) {
@@ -338,10 +502,22 @@ function abrirModalEdicion(id) {
   document.getElementById("f-alcance").value = r["Alcance"] || "";
   document.getElementById("f-tiposEventos").value = r["Tipos de Eventos"] || "";
   document.getElementById("f-contactado").value = r["Contactado"] || "No";
-  document.getElementById("f-estado").value = r["Estado"] || "Pendiente";
   document.getElementById("f-fechaContacto").value = r["Fecha de contacto"] || "";
   document.getElementById("f-quienContacto").value = r["Quién contactó"] || "";
   document.getElementById("f-notas").value = r["Notas"] || "";
+
+  // El estado puede venir con un valor que no está en la lista fija del
+  // select (la hoja tiene estados cargados a mano); lo agregamos al vuelo
+  // para no pisarlo sin querer al guardar.
+  const selEstado = document.getElementById("f-estado");
+  const estadoActual = r["Estado"] || "Pendiente";
+  if (!Array.from(selEstado.options).some(function (o) { return o.value === estadoActual; })) {
+    const opt = document.createElement("option");
+    opt.value = estadoActual;
+    opt.textContent = estadoActual;
+    selEstado.appendChild(opt);
+  }
+  selEstado.value = estadoActual;
 
   const fechaLocal = isoToDatetimeLocal(r["Recordatorio Fecha"]);
   els.recordatorioFecha.value = fechaLocal;
@@ -349,14 +525,12 @@ function abrirModalEdicion(id) {
   els.recordatorioInstrucciones.value = r["Recordatorio Instrucciones"] || "";
   syncReminderPreview();
 
-  const enviado = (r["Recordatorio Enviado"] || "").toString().toLowerCase();
-  if (fechaLocal && (enviado === "sí" || enviado === "si")) {
-    els.reminderStatus.textContent = "Este recordatorio ya se envió. Si cambiás la fecha, se vuelve a programar.";
-    els.reminderStatus.className = "reminder-status sent";
-    els.reminderStatus.classList.remove("hidden");
-  } else if (fechaLocal) {
-    els.reminderStatus.textContent = "Recordatorio programado, todavía no se envió.";
-    els.reminderStatus.className = "reminder-status pending";
+  if (fechaLocal) {
+    const info = clasificarRecordatorio(r);
+    els.reminderStatus.textContent = info && info.tipo === "overdue"
+      ? "Recordatorio vencido. Cambiá la fecha para reprogramar la invitación de Calendar."
+      : "Recordatorio programado. Si cambiás la fecha, se reprograma el evento de Calendar.";
+    els.reminderStatus.className = "reminder-status " + (info && info.tipo === "overdue" ? "sent" : "pending");
     els.reminderStatus.classList.remove("hidden");
   } else {
     els.reminderStatus.classList.add("hidden");
@@ -373,14 +547,12 @@ function cerrarModal() {
 
 // ---------------- Toasts (avisos de guardado en segundo plano) ----------------
 
-const toastContainer = document.getElementById("toast-container");
-
 function showToast(message, type) {
-  if (!toastContainer) return;
+  if (!els.toastContainer) return;
   const toast = document.createElement("div");
   toast.className = "toast" + (type ? " toast-" + type : "");
   toast.textContent = message;
-  toastContainer.appendChild(toast);
+  els.toastContainer.appendChild(toast);
 
   requestAnimationFrame(function () { toast.classList.add("show"); });
 
@@ -389,6 +561,8 @@ function showToast(message, type) {
     setTimeout(function () { toast.remove(); }, 250);
   }, 4500);
 }
+
+// ---------------- Guardado ----------------
 
 let tempIdCounter = 0;
 
@@ -402,7 +576,7 @@ els.form.addEventListener("submit", function (e) {
   const operatorEmail = els.operatorEmail.value.trim();
 
   if (recordatorioFecha && !operatorEmail) {
-    els.formError.textContent = 'Para programar un recordatorio, completá "Tu email" arriba a la derecha primero.';
+    els.formError.textContent = "Para programar un recordatorio, completá tu email arriba primero.";
     els.formError.classList.remove("hidden");
     return;
   }
@@ -427,8 +601,7 @@ els.form.addEventListener("submit", function (e) {
   };
 
   // Campos de recordatorio: solo los mandamos si hay algo cargado, y solo
-  // reseteamos el flag "enviado" cuando la fecha efectivamente cambió — así
-  // no revivimos recordatorios ya enviados con cada edición de la fila.
+  // reseteamos el flag "enviado" cuando la fecha efectivamente cambió.
   if (recordatorioFecha) {
     record["Email Operador"] = operatorEmail;
     record["Recordatorio Fecha"] = recordatorioFecha;
@@ -450,10 +623,10 @@ els.form.addEventListener("submit", function (e) {
 
   const nombreInstitucion = record["Institución"] || "el registro";
 
-  // Guardado optimista: actualizamos la tabla YA (sin esperar al backend) y
-  // cerramos el modal para poder seguir editando de una. El pedido real
-  // sigue en segundo plano — si tarda o falla, se avisa con un toast en vez
-  // de dejar la pantalla trabada en "Guardando...".
+  // Guardado optimista: actualizamos la vista YA (sin esperar al backend) y
+  // cerramos el modal para poder seguir editando de una. El pedido real sigue
+  // en segundo plano — si tarda o falla, se avisa con un toast en vez de
+  // dejar la pantalla trabada en "Guardando...".
   const rollback = { id: id, previousRecord: null, tempId: null };
 
   if (id) {
@@ -466,8 +639,7 @@ els.form.addEventListener("submit", function (e) {
     rollback.tempId = "tmp-" + (++tempIdCounter);
     RECORDS.push(Object.assign({ "ID": rollback.tempId }, record));
   }
-  renderStats();
-  renderTabla();
+  renderTodo();
 
   cerrarModal();
   guardarEnSegundoPlano(payload, nombreInstitucion, rollback);
@@ -475,42 +647,36 @@ els.form.addEventListener("submit", function (e) {
 
 async function guardarEnSegundoPlano(payload, nombreInstitucion, rollback) {
   try {
-    // OJO: no seteamos "Content-Type: application/json" a propósito.
-    // Si lo hacemos, el navegador dispara un preflight OPTIONS que Apps
-    // Script no responde, y el request se cae por CORS. Con el content-type
-    // por default (text/plain) evitamos el preflight; Apps Script igual
-    // puede leer el body y hacer JSON.parse sin problema.
+    // OJO: no seteamos "Content-Type: application/json" a propósito. Si lo
+    // hacemos, el navegador dispara un preflight OPTIONS que Apps Script no
+    // responde, y el request se cae por CORS. Con el content-type por default
+    // (text/plain) evitamos el preflight; Apps Script igual puede leer el body.
     //
-    // Reintentamos automáticamente SOLO si es "update": es idempotente (volver
-    // a mandar los mismos datos no rompe nada), así absorbemos el cold-start
-    // típico de Apps Script sin mostrar un error al pedo. "create" NO se
-    // reintenta solo: si la primera petición en realidad sí llegó a crear la
-    // fila del lado del servidor y nosotros no nos enteramos por un cold
-    // start, reintentar crearía una institución duplicada — mejor mostrar el
-    // error real y que el usuario decida si reintenta a mano.
+    // Reintentamos automáticamente SOLO si es "update": es idempotente. En
+    // "create" un reintento podría duplicar la institución si la primera
+    // petición sí llegó al servidor y solo se perdió la respuesta.
     const postOpts = { method: "POST", body: JSON.stringify(payload) };
-    const json = payload.action === "update"
-      ? await fetchConReintento(postOpts)
-      : await (async function () {
-          const res = await fetch(CONFIG.API_URL, postOpts);
-          const j = await res.json();
-          if (!j.ok) throw new Error(j.error || "Error desconocido");
-          return j;
-        })();
+
+    if (payload.action === "update") {
+      await fetchConReintento(postOpts);
+    } else {
+      const res = await fetch(CONFIG.API_URL, postOpts);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || "Error desconocido");
+    }
 
     showToast((payload.action === "create" ? "Creado: " : "Guardado: ") + nombreInstitucion, "success");
     await cargarDatos();
   } catch (err) {
-    // Se cayó de verdad: revertimos el cambio optimista para no mentirle a
-    // la tabla, y avisamos con un toast (el modal ya está cerrado).
+    // Se cayó de verdad: revertimos el cambio optimista para no mentirle a la
+    // vista, y avisamos con un toast (el modal ya está cerrado).
     if (rollback.id && rollback.previousRecord) {
       const idx = RECORDS.findIndex(function (r) { return String(r["ID"]) === String(rollback.id); });
       if (idx !== -1) RECORDS[idx] = rollback.previousRecord;
     } else if (rollback.tempId) {
       RECORDS = RECORDS.filter(function (r) { return r["ID"] !== rollback.tempId; });
     }
-    renderStats();
-    renderTabla();
+    renderTodo();
     showToast('No se pudo guardar "' + nombreInstitucion + '": ' + err.message, "error");
   }
 }

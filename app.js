@@ -234,9 +234,9 @@ function renderTabla() {
         "<tr>" +
         "<td><strong>" + escapeHtml(r["Institución"]) + "</strong></td>" +
         "<td>" + escapeHtml(r["Área / Rubro"]) + "</td>" +
-        "<td>" + escapeHtml(r["Ciudad"]) + "</td>" +
+        "<td>" + escapeHtml(r["Director / Autoridad"] || "—") + "</td>" +
         "<td class='contact-cell'>" +
-        "<strong>" + escapeHtml(r["Referente"] || r["Director / Autoridad"] || "—") + "</strong>" +
+        "<strong>" + escapeHtml(r["Referente"] || "—") + "</strong>" +
         "<span>" + escapeHtml(r["Email"] || r["Teléfono"] || "") + "</span>" +
         "</td>" +
         "<td>" + badge(r["Estado"]) + "</td>" +

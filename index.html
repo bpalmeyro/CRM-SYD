@@ -10,97 +10,84 @@
 </head>
 <body>
 
-  <!-- Pantalla de acceso -->
+  <!-- Acceso -->
   <div id="gate" class="gate">
     <div class="gate-card">
-      <div class="gate-logo">★</div>
       <h1>Soñar y Donar</h1>
-      <p>Ingresá el código de acceso para entrar al CRM.</p>
-      <input type="password" id="access-code-input" placeholder="Código de acceso" autocomplete="off" />
+      <p>Registro de fundaciones e instituciones para el pipeline comercial.</p>
+      <label for="access-code-input">Código de acceso</label>
+      <input type="password" id="access-code-input" autocomplete="off" />
       <button id="access-code-btn" class="btn btn-primary">Entrar</button>
-      <p id="access-error" class="error hidden">Código incorrecto.</p>
+      <p id="access-error" class="gate-error hidden">El código no es correcto. Revisalo y probá de nuevo.</p>
     </div>
   </div>
 
-  <!-- App -->
+  <!-- Aplicación -->
   <div id="app" class="app hidden">
 
     <header class="topbar">
-      <div class="brand">
-        <div class="brand-mark">★</div>
-        <h1>CRM Soñar y Donar
-          <span>Pipeline de fundaciones y ONGs</span>
-        </h1>
+      <div class="wordmark">
+        Soñar y Donar
+        <em>Registro de instituciones</em>
       </div>
       <div class="topbar-right">
-        <div class="operator-field" title="Se usa para mandarte los recordatorios que cargues">
-          <input type="email" id="operator-email" placeholder="Tu email" autocomplete="email" />
+        <div class="operator">
+          <input type="email" id="operator-email" placeholder="Tu email" autocomplete="email"
+                 title="Recibís acá las invitaciones de Calendar de los recordatorios que cargues" />
         </div>
-        <button id="btn-refresh" class="btn btn-ghost" title="Recargar datos">↻</button>
-        <button id="btn-new" class="btn btn-primary">+ Nueva institución</button>
+        <button id="btn-theme" class="icon-btn" title="Cambiar a tema claro" aria-label="Cambiar tema"></button>
+        <button id="btn-refresh" class="icon-btn" title="Recargar datos" aria-label="Recargar datos">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 8a6 6 0 1 1-1.8-4.3" /><path d="M14 2v3.5h-3.5" />
+          </svg>
+        </button>
+        <button id="btn-new" class="btn btn-primary">Nueva institución</button>
       </div>
     </header>
 
-    <!-- Panel de acción: recordatorios -->
-    <section class="today" id="today-panel">
-      <button class="today-card" data-rem="overdue">
-        <div class="today-icon red">⏰</div>
-        <div class="today-body">
-          <div class="today-value" id="rem-overdue">0</div>
-          <div class="today-label">Recordatorios vencidos</div>
+    <!-- Banda de trabajo -->
+    <section class="worklane">
+      <div class="worklane-total">
+        <div class="figure-row">
+          <span class="figure" id="stat-total">0</span>
+          <span class="figure-label">instituciones registradas</span>
         </div>
-      </button>
-      <button class="today-card" data-rem="today">
-        <div class="today-icon amber">📌</div>
-        <div class="today-body">
-          <div class="today-value" id="rem-today">0</div>
-          <div class="today-label">Para hoy</div>
-        </div>
-      </button>
-      <button class="today-card" data-rem="week">
-        <div class="today-icon blue">📅</div>
-        <div class="today-body">
-          <div class="today-value" id="rem-week">0</div>
-          <div class="today-label">Próximos 7 días</div>
-        </div>
-      </button>
-    </section>
-
-    <!-- Pipeline por estado -->
-    <section class="pipeline">
-      <div class="pipeline-head">
-        <div class="pipeline-total">
-          <strong id="stat-total">0</strong>
-          <span>instituciones en total</span>
-        </div>
-        <div class="pipeline-hint">Tocá un estado para filtrar</div>
+        <div class="estado-bar" id="estado-bar"></div>
+        <div class="estado-legend" id="estado-legend"></div>
       </div>
-      <div class="pipeline-bar" id="pipeline-bar"></div>
-      <div class="pipeline-legend" id="pipeline-legend"></div>
+      <div class="worklane-queue" id="queue">
+        <button class="queue-item is-overdue" data-rem="overdue" aria-pressed="false">
+          <span class="queue-figure" id="rem-overdue">0</span>
+          <span class="queue-label">vencidos</span>
+        </button>
+        <button class="queue-item is-today" data-rem="today" aria-pressed="false">
+          <span class="queue-figure" id="rem-today">0</span>
+          <span class="queue-label">para hoy</span>
+        </button>
+        <button class="queue-item" data-rem="week" aria-pressed="false">
+          <span class="queue-figure" id="rem-week">0</span>
+          <span class="queue-label">próximos 7 días</span>
+        </button>
+      </div>
     </section>
 
     <!-- Filtros -->
-    <section class="toolbar">
-      <div class="search-wrap">
-        <input type="text" id="search" placeholder="Buscar por institución, referente, director, email..." />
-      </div>
-      <select id="filter-area">
-        <option value="">Todas las áreas</option>
-      </select>
-      <select id="filter-estado">
-        <option value="">Todos los estados</option>
-      </select>
-      <span class="result-count" id="result-count"></span>
+    <section class="filters">
+      <input type="search" id="search" placeholder="Buscar institución, director, referente o email" />
+      <select id="filter-area"><option value="">Todas las áreas</option></select>
+      <select id="filter-estado"><option value="">Todos los estados</option></select>
+      <span class="count" id="result-count"></span>
     </section>
 
-    <!-- Tabla -->
-    <section class="table-wrap">
+    <!-- Registro -->
+    <section class="plane">
       <div class="table-scroll">
-        <table id="table">
+        <table>
           <thead>
             <tr>
               <th>Institución</th>
-              <th>Director / Autoridad</th>
+              <th>Director o autoridad</th>
               <th>Referente</th>
               <th>Contacto</th>
               <th>Estado</th>
@@ -109,81 +96,72 @@
             </tr>
           </thead>
           <tbody id="table-body">
-            <tr><td colspan="7" class="loading"><span class="spinner"></span> Cargando datos...</td></tr>
+            <tr><td colspan="7" class="state-msg">
+              <div class="loading-line"><span class="pulse"></span> Trayendo el registro</div>
+            </td></tr>
           </tbody>
         </table>
       </div>
     </section>
   </div>
 
-  <!-- Modal alta/edición -->
-  <div id="modal" class="modal hidden">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h2 id="modal-title">Nueva institución</h2>
-        <button id="modal-close" class="btn-icon">✕</button>
+  <!-- Panel de edición -->
+  <div id="drawer-scrim" class="drawer-scrim hidden"></div>
+  <aside id="drawer" class="drawer hidden" aria-label="Editar institución">
+    <div class="drawer-head">
+      <div>
+        <h2 id="drawer-title">Nueva institución</h2>
+        <span class="sub" id="drawer-sub">Completá los datos y guardá</span>
       </div>
-      <form id="form-record">
-        <div class="modal-body">
+      <button id="drawer-close" class="icon-btn" aria-label="Cerrar">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round">
+          <path d="M4 4l8 8M12 4l-8 8" />
+        </svg>
+      </button>
+    </div>
 
-          <p class="form-section-title">Institución</p>
+    <form id="form-record">
+      <div class="drawer-body">
 
-          <label>Nombre *
+        <div class="group">
+          <h3 class="group-name">Institución</h3>
+          <label class="field"><span>Nombre</span>
             <input type="text" id="f-institucion" required />
           </label>
-
-          <div class="grid-2">
-            <label>Área / Rubro
-              <input type="text" id="f-area" />
-            </label>
-            <label>Ciudad
-              <input type="text" id="f-ciudad" />
-            </label>
+          <div class="pair">
+            <label class="field"><span>Área o rubro</span><input type="text" id="f-area" /></label>
+            <label class="field"><span>Ciudad</span><input type="text" id="f-ciudad" /></label>
           </div>
-
-          <label>Descripción
+          <label class="field"><span>Descripción</span>
             <textarea id="f-descripcion" rows="2"></textarea>
           </label>
-
-          <div class="grid-2">
-            <label>Alcance
-              <input type="text" id="f-alcance" placeholder="Nacional / Regional / Local" />
+          <div class="pair">
+            <label class="field"><span>Alcance</span>
+              <input type="text" id="f-alcance" placeholder="Nacional, regional o local" />
             </label>
-            <label>Tipos de eventos
-              <input type="text" id="f-tiposEventos" />
-            </label>
+            <label class="field"><span>Tipos de eventos</span><input type="text" id="f-tiposEventos" /></label>
           </div>
+        </div>
 
-          <hr class="modal-divider" />
-          <p class="form-section-title">Personas y contacto</p>
-
-          <div class="grid-2">
-            <label>Director / Autoridad
-              <input type="text" id="f-director" placeholder="Máxima autoridad de la ONG" />
-            </label>
-            <label>Referente
-              <input type="text" id="f-referente" placeholder="Con quién hablamos nosotros" />
-            </label>
+        <div class="group">
+          <h3 class="group-name">Personas</h3>
+          <p class="group-note">El director es la máxima autoridad de la institución. El referente es la persona
+            con la que hablamos nosotros. Pueden no ser la misma.</p>
+          <div class="pair">
+            <label class="field"><span>Director o autoridad</span><input type="text" id="f-director" /></label>
+            <label class="field"><span>Referente</span><input type="text" id="f-referente" /></label>
           </div>
-
-          <div class="grid-2">
-            <label>Email
-              <input type="email" id="f-email" />
-            </label>
-            <label>Teléfono
-              <input type="text" id="f-telefono" />
-            </label>
+          <div class="pair">
+            <label class="field"><span>Email</span><input type="email" id="f-email" /></label>
+            <label class="field"><span>Teléfono</span><input type="text" id="f-telefono" /></label>
           </div>
+          <label class="field"><span>Sitio web</span><input type="text" id="f-web" /></label>
+        </div>
 
-          <label>Web
-            <input type="text" id="f-web" />
-          </label>
-
-          <hr class="modal-divider" />
-          <p class="form-section-title">Seguimiento</p>
-
-          <div class="grid-2">
-            <label>Estado
+        <div class="group">
+          <h3 class="group-name">Seguimiento</h3>
+          <div class="pair">
+            <label class="field"><span>Estado</span>
               <select id="f-estado">
                 <option value="Pendiente">Pendiente</option>
                 <option value="En proceso">En proceso</option>
@@ -192,57 +170,55 @@
                 <option value="Descartado">Descartado</option>
               </select>
             </label>
-            <label>Contactado
+            <label class="field"><span>Contactado</span>
               <select id="f-contactado">
                 <option value="No">No</option>
                 <option value="Sí">Sí</option>
               </select>
             </label>
           </div>
-
-          <div class="grid-2">
-            <label>Fecha de contacto
+          <div class="pair">
+            <label class="field"><span>Fecha de contacto</span>
               <input type="text" id="f-fechaContacto" placeholder="dd/mm/aaaa" />
             </label>
-            <label>Quién contactó
-              <input type="text" id="f-quienContacto" />
-            </label>
+            <label class="field"><span>Quién contactó</span><input type="text" id="f-quienContacto" /></label>
           </div>
-
-          <label>Notas / Resumen de la reunión
+          <label class="field"><span>Notas de la reunión</span>
             <textarea id="f-notas" rows="3"></textarea>
           </label>
+        </div>
 
-          <div class="reminder-block">
-            <p class="reminder-title">🔔 Recordatorio</p>
-            <div class="grid-2">
-              <label>Recordarme el
-                <input type="datetime-local" id="f-recordatorioFecha" />
-              </label>
-              <label>Invitación de Calendar a
-                <input type="email" id="f-recordatorioEmailPreview" disabled placeholder="Completá tu email arriba" />
-              </label>
-            </div>
-            <label>Instrucciones del recordatorio
-              <textarea id="f-recordatorioInstrucciones" rows="2" placeholder="Ej: Llamar a Juan para confirmar la reunión"></textarea>
+        <div class="group">
+          <h3 class="group-name">Recordatorio</h3>
+          <p class="group-note">Al guardar se crea una invitación en Google Calendar con esta fecha.
+            Si la cambiás, se reprograma.</p>
+          <div class="pair">
+            <label class="field"><span>Recordarme el</span>
+              <input type="datetime-local" id="f-recordatorioFecha" />
             </label>
-            <p class="reminder-status hidden" id="reminder-status"></p>
+            <label class="field"><span>Invitación para</span>
+              <input type="email" id="f-recordatorioEmailPreview" disabled />
+            </label>
           </div>
-
-          <input type="hidden" id="f-id" />
+          <label class="field"><span>Qué tengo que hacer</span>
+            <textarea id="f-recordatorioInstrucciones" rows="2"
+                      placeholder="Llamar a Juan para confirmar la reunión"></textarea>
+          </label>
+          <p class="rem-note hidden" id="reminder-status"></p>
         </div>
 
-        <div class="modal-footer">
-          <span id="form-error" class="error hidden"></span>
-          <button type="button" class="btn btn-ghost" id="btn-cancel">Cancelar</button>
-          <button type="submit" class="btn btn-primary" id="btn-save">Guardar</button>
-        </div>
-      </form>
-    </div>
-  </div>
+        <input type="hidden" id="f-id" />
+      </div>
 
-  <!-- Avisos de guardado en segundo plano -->
-  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+      <div class="drawer-foot">
+        <span id="form-error" class="form-error hidden"></span>
+        <button type="button" class="btn btn-quiet" id="btn-cancel">Cancelar</button>
+        <button type="submit" class="btn btn-primary" id="btn-save">Guardar</button>
+      </div>
+    </form>
+  </aside>
+
+  <div id="notices" class="notices" aria-live="polite"></div>
 
   <script src="config.js"></script>
   <script src="app.js"></script>

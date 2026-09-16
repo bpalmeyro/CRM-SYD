@@ -4,6 +4,7 @@
 let RECORDS = [];
 let CONTACTOS = [];          // historial: varias entradas por institución
 let abiertas = {};           // qué instituciones tienen el historial desplegado
+let editando = null;         // ID de la entrada de historial en modo edición
 let filtroRecordatorio = ""; // "", "overdue", "today", "week"
 
 const OPERATOR_KEY = "crmOperatorEmail";
@@ -493,21 +494,9 @@ function historialHtml(id) {
       escapeHtml(nombre) + ". Cargá el primero acá abajo.</p>";
   } else {
     cuerpo = "<ul class='log'>" + lista.map(function (c, i) {
-      const f = parseFecha(c["Fecha"]);
-      const cuando = f
-        ? pad(f.getDate()) + "/" + pad(f.getMonth() + 1) + "/" + f.getFullYear() +
-          "<br>" + pad(f.getHours()) + ":" + pad(f.getMinutes())
-        : "Sin fecha";
-      const quien = (c["Quién"] || "").toString().trim();
-      return "<li class='log-entry' style='animation-delay:" + (i * 40) + "ms'>" +
-        "<span class='log-when'>" + cuando + "</span>" +
-        "<span class='log-what'>" +
-          "<span class='log-channel'>" + escapeHtml(c["Canal"] || "Sin especificar") + "</span>" +
-          "<span class='log-summary'>" + escapeHtml(c["Resumen"] || "Sin detalle cargado.") + "</span>" +
-        "</span>" +
-        "<span class='log-who'>" + (quien ? escapeHtml(quien) : "") +
-          "<button class='log-drop' data-drop='" + escapeAttr(c["ID"]) + "'>Borrar</button>" +
-        "</span></li>";
+      return editando === String(c["ID"])
+        ? entradaEditableHtml(c, i)
+        : entradaHtml(c, i);
     }).join("") + "</ul>";
   }
 
@@ -530,12 +519,136 @@ function historialHtml(id) {
   return cabecera + cuerpo + alta;
 }
 
+function entradaHtml(c, i) {
+  const f = parseFecha(c["Fecha"]);
+  const cuando = f
+    ? pad(f.getDate()) + "/" + pad(f.getMonth() + 1) + "/" + f.getFullYear() +
+      "<br>" + pad(f.getHours()) + ":" + pad(f.getMinutes())
+    : "Sin fecha";
+  const quien = (c["Quién"] || "").toString().trim();
+
+  return "<li class='log-entry' style='animation-delay:" + (i * 40) + "ms'>" +
+    "<span class='log-when'>" + cuando + "</span>" +
+    "<span class='log-what'>" +
+      "<span class='log-channel'>" + escapeHtml(c["Canal"] || "Sin especificar") + "</span>" +
+      "<span class='log-summary'>" + escapeHtml(c["Resumen"] || "Sin detalle cargado.") + "</span>" +
+    "</span>" +
+    "<span class='log-who'>" + (quien ? escapeHtml(quien) : "") +
+      "<span class='log-tools'>" +
+        "<button class='log-tool' data-edit='" + escapeAttr(c["ID"]) + "'>Editar</button>" +
+        "<button class='log-tool danger' data-drop='" + escapeAttr(c["ID"]) + "'>Borrar</button>" +
+      "</span>" +
+    "</span></li>";
+}
+
+function entradaEditableHtml(c) {
+  const canales = ["Llamada", "Email", "Reunión", "WhatsApp", "Sin especificar"];
+  const canalActual = (c["Canal"] || "Sin especificar").toString();
+  const opciones = canales.map(function (op) {
+    return "<option" + (op === canalActual ? " selected" : "") + ">" + op + "</option>";
+  }).join("");
+
+  return "<li class='log-entry editing'>" +
+    "<div class='log-edit'>" +
+      "<label><span>Cuándo</span>" +
+        "<input type='datetime-local' data-ed='fecha' value='" +
+        escapeAttr(isoADatetimeLocal(c["Fecha"])) + "' /></label>" +
+      "<label><span>Canal</span><select data-ed='canal'>" + opciones + "</select></label>" +
+      "<label><span>Quién</span><input type='text' data-ed='quien' value='" +
+        escapeAttr(c["Quién"] || "") + "' /></label>" +
+      "<label class='log-edit-wide'><span>Qué pasó</span><input type='text' data-ed='resumen' value='" +
+        escapeAttr(c["Resumen"] || "") + "' /></label>" +
+      "<div class='log-edit-actions'>" +
+        "<button type='button' class='btn btn-quiet' data-cancel='1'>Cancelar</button>" +
+        "<button type='button' class='btn btn-primary' data-save='" + escapeAttr(c["ID"]) + "'>Guardar</button>" +
+      "</div>" +
+    "</div></li>";
+}
+
 function enlazarHistorial(cuerpo, id) {
+  cuerpo.querySelectorAll("[data-edit]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      editando = btn.getAttribute("data-edit");
+      refrescarHistorial(id);
+      const campo = cuerpo.querySelector("[data-ed='resumen']");
+      if (campo) campo.focus();
+    });
+  });
+
+  const cancelar = cuerpo.querySelector("[data-cancel]");
+  if (cancelar) {
+    cancelar.addEventListener("click", function () { editando = null; refrescarHistorial(id); });
+  }
+
+  const guardar = cuerpo.querySelector("[data-save]");
+  if (guardar) {
+    guardar.addEventListener("click", function () {
+      guardarEdicionContacto(cuerpo, guardar.getAttribute("data-save"), id);
+    });
+    cuerpo.querySelectorAll("[data-ed]").forEach(function (campo) {
+      campo.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          guardarEdicionContacto(cuerpo, guardar.getAttribute("data-save"), id);
+        }
+        if (e.key === "Escape") { editando = null; refrescarHistorial(id); }
+      });
+    });
+  }
+
+  enlazarAltaHistorial(cuerpo, id);
+}
+
+function guardarEdicionContacto(cuerpo, idContacto, idInstitucion) {
+  const leer = function (campo) {
+    const el = cuerpo.querySelector("[data-ed='" + campo + "']");
+    return el ? el.value.trim() : "";
+  };
+
+  const resumen = leer("resumen");
+  if (!resumen) {
+    avisar("El contacto necesita una línea que diga qué pasó.", "bad");
+    return;
+  }
+
+  const cambios = {
+    "Fecha": leer("fecha"),
+    "Canal": leer("canal"),
+    "Quién": leer("quien"),
+    "Resumen": resumen
+  };
+
+  const idx = CONTACTOS.findIndex(function (c) { return String(c["ID"]) === String(idContacto); });
+  if (idx === -1) return;
+  const anterior = Object.assign({}, CONTACTOS[idx]);
+
+  CONTACTOS[idx] = Object.assign({}, anterior, cambios);
+  editando = null;
+  refrescarHistorial(idInstitucion);
+
+  (async function () {
+    try {
+      // Editar es idempotente: reintentar no duplica nada, así que absorbemos
+      // el arranque en frío del servidor sin molestar al operador.
+      await pedir({
+        method: "POST",
+        body: JSON.stringify({ action: "updateContacto", id: idContacto, contacto: cambios })
+      });
+      avisar("Actualizamos el contacto", "ok");
+    } catch (err) {
+      CONTACTOS[idx] = anterior;
+      refrescarHistorial(idInstitucion);
+      avisar("No pudimos actualizar el contacto. " + err.message, "bad");
+    }
+  })();
+}
+
+function enlazarAltaHistorial(cuerpo, id) {
   const guardar = cuerpo.querySelector("[data-guardar]");
   if (guardar) {
     guardar.addEventListener("click", function () { registrarContacto(cuerpo, id); });
   }
-  cuerpo.querySelectorAll(".log-drop").forEach(function (btn) {
+  cuerpo.querySelectorAll("[data-drop]").forEach(function (btn) {
     btn.addEventListener("click", function () { borrarContacto(btn.getAttribute("data-drop"), id); });
   });
   const resumen = cuerpo.querySelector("[data-campo='resumen']");

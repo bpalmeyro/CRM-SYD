@@ -812,23 +812,60 @@ function persona(valor) {
   return v ? escapeHtml(v) : "";
 }
 
+// Mostramos el dato en sí, no la palabra "Email" o "Teléfono": el operador
+// necesita leer el número para marcarlo sin abrir el registro.
+//
+// Los campos vienen sucios de la carga original: hay celdas con tres mails
+// separados por barras y etiquetas ("Presidenta: x@y // Institucional: z@y"),
+// y teléfonos con más de un número. Por eso extraemos cada dato y lo
+// mostramos por separado, en vez de volcar la celda entera en un solo enlace
+// que no serviría para escribir ni para llamar.
+const RE_EMAIL = /[^\s<>()[\],;:"]+@[^\s<>()[\],;:"]+\.[a-z]{2,}/gi;
+
+function extraerTelefonos(texto) {
+  const candidatos = texto.split(/[\/|;]+|\s{2,}/);
+  const numeros = [];
+  candidatos.forEach(function (parte) {
+    const limpio = parte.trim();
+    const soloNumero = limpio.match(/[+(]?[\d][\d\s().-]{6,}\d/);
+    if (soloNumero) numeros.push(soloNumero[0].trim());
+  });
+  return numeros;
+}
+
 function contactos(r) {
   const email = (r["Email"] || "").toString().trim();
   const tel = (r["Teléfono"] || "").toString().trim();
   const web = (r["Web"] || "").toString().trim();
   const links = [];
 
-  if (email) {
-    links.push("<a href='mailto:" + escapeAttr(email) + "' title='" + escapeAttr(email) + "'>Email</a>");
+  const mails = email.match(RE_EMAIL) || [];
+  if (mails.length) {
+    mails.forEach(function (m) {
+      links.push("<a class='c-dato' href='mailto:" + escapeAttr(m) +
+        "' title='Escribir a " + escapeAttr(m) + "'>" + escapeHtml(m) + "</a>");
+    });
+  } else if (email) {
+    links.push("<span class='c-dato c-plano' title='" + escapeAttr(email) + "'>" +
+      escapeHtml(email) + "</span>");
   }
-  if (tel) {
-    links.push("<a href='tel:" + escapeAttr(tel.replace(/[^\d+]/g, "")) +
-      "' title='" + escapeAttr(tel) + "'>Teléfono</a>");
+
+  const numeros = extraerTelefonos(tel);
+  if (numeros.length) {
+    numeros.forEach(function (n) {
+      links.push("<a class='c-dato' href='tel:" + escapeAttr(n.replace(/[^\d+]/g, "")) +
+        "' title='Llamar al " + escapeAttr(n) + "'>" + escapeHtml(n) + "</a>");
+    });
+  } else if (tel) {
+    links.push("<span class='c-dato c-plano' title='" + escapeAttr(tel) + "'>" +
+      escapeHtml(tel) + "</span>");
   }
+
   if (web) {
     const url = /^https?:\/\//i.test(web) ? web : "https://" + web;
-    links.push("<a href='" + escapeAttr(url) + "' target='_blank' rel='noopener' title='" +
-      escapeAttr(web) + "'>Web</a>");
+    const dominio = web.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
+    links.push("<a class='c-web' href='" + escapeAttr(url) + "' target='_blank' rel='noopener' title='" +
+      escapeAttr(url) + "'>" + escapeHtml(dominio) + "</a>");
   }
 
   return links.length ? "<span class='links'>" + links.join("") + "</span>" : "";

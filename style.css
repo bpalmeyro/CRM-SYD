@@ -322,7 +322,11 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .plane { background: var(--plane); }
 table { width: 100%; border-collapse: collapse; }
 .table-scroll { overflow-x: auto; }
-table { min-width: 940px; }
+/* La columna de contacto ahora muestra el mail y el teléfono completos, así
+   que la tabla necesita más aire que cuando decía solo "Email" y "Teléfono". */
+table { min-width: 1060px; }
+thead th:nth-child(4),
+tbody td[data-label="Contacto"] { min-width: 215px; }
 
 thead th {
   text-align: left;
@@ -363,16 +367,25 @@ tbody tr.flag-today td:first-child { box-shadow: inset 2px 0 0 var(--today); }
 .person { color: var(--ink-2); font-size: 0.84rem; line-height: 1.45; }
 .nodata { color: var(--ink-3); }
 
-/* Contacto: marcas de texto, no botones con caja */
-.links { display: flex; gap: 12px; }
+/* Contacto: el dato a la vista, apilado y clickeable */
+.links { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
 .links a {
   font-size: 0.8rem;
   color: var(--ink-2);
   text-decoration: none;
   border-bottom: 1px solid transparent;
+  max-width: 100%;
+  /* Los mails largos parten antes que quedar cortados: el operador necesita
+     leer el dato entero. */
+  overflow-wrap: anywhere;
   transition: color 0.14s ease, border-color 0.14s ease;
 }
 .links a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+.c-dato { font-family: var(--mono); font-size: 0.76rem; letter-spacing: -0.01em; }
+.c-web { color: var(--ink-3); }
+/* Dato que no pudimos interpretar: se muestra igual, pero sin fingir que es
+   un enlace que va a funcionar. */
+.c-plano { color: var(--ink-3); overflow-wrap: anywhere; }
 
 /* Estado: marca + texto, sin píldora */
 .state { display: flex; align-items: center; gap: 8px; font-size: 0.83rem; white-space: nowrap; }

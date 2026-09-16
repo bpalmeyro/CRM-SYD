@@ -14,6 +14,7 @@
   <div id="gate" class="gate">
     <div class="gate-card">
       <h1>Soñar y Donar</h1>
+      <p class="slogan">Soñemos por un mundo mejor.</p>
       <p>Registro de fundaciones e instituciones para el pipeline comercial.</p>
       <label for="access-code-input">Código de acceso</label>
       <input type="password" id="access-code-input" autocomplete="off" />
@@ -103,6 +104,11 @@
         </table>
       </div>
     </section>
+
+    <footer class="app-foot">
+      <span>Soñemos por un mundo mejor.</span>
+      <span class="foot-org">Argenprom</span>
+    </footer>
   </div>
 
   <!-- Panel de edición -->
@@ -120,91 +126,109 @@
       </button>
     </div>
 
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab" data-tab="perfil" role="tab" aria-selected="true">
+        Perfil de la organización
+      </button>
+      <button type="button" class="tab" data-tab="estado" role="tab" aria-selected="false">
+        Estado del lead
+      </button>
+      <span class="tab-indicator" id="tab-indicator"></span>
+    </div>
+
     <form id="form-record">
       <div class="drawer-body">
 
-        <div class="group">
-          <h3 class="group-name">Institución</h3>
-          <label class="field"><span>Nombre</span>
-            <input type="text" id="f-institucion" required />
-          </label>
-          <div class="pair">
-            <label class="field"><span>Área o rubro</span><input type="text" id="f-area" /></label>
-            <label class="field"><span>Ciudad</span><input type="text" id="f-ciudad" /></label>
-          </div>
-          <label class="field"><span>Descripción</span>
-            <textarea id="f-descripcion" rows="2"></textarea>
-          </label>
-          <div class="pair">
-            <label class="field"><span>Alcance</span>
-              <input type="text" id="f-alcance" placeholder="Nacional, regional o local" />
+        <!-- Perfil: quién es la organización (columnas B a L de la hoja) -->
+        <div class="tab-panel" data-panel="perfil">
+          <div class="group">
+            <h3 class="group-name">Identidad</h3>
+            <label class="field"><span>Nombre</span>
+              <input type="text" id="f-institucion" required />
             </label>
-            <label class="field"><span>Tipos de eventos</span><input type="text" id="f-tiposEventos" /></label>
+            <div class="pair">
+              <label class="field"><span>Área o rubro</span><input type="text" id="f-area" /></label>
+              <label class="field"><span>Ciudad</span><input type="text" id="f-ciudad" /></label>
+            </div>
+            <label class="field"><span>Descripción</span>
+              <textarea id="f-descripcion" rows="2"></textarea>
+            </label>
+            <div class="pair">
+              <label class="field"><span>Alcance</span>
+                <input type="text" id="f-alcance" placeholder="Nacional, regional o local" />
+              </label>
+              <label class="field"><span>Tipos de eventos</span><input type="text" id="f-tiposEventos" /></label>
+            </div>
+          </div>
+
+          <div class="group">
+            <h3 class="group-name">Personas</h3>
+            <p class="group-note">El director es la máxima autoridad de la institución. El referente es la
+              persona con la que hablamos nosotros. Pueden no ser la misma.</p>
+            <div class="pair">
+              <label class="field"><span>Director o autoridad</span><input type="text" id="f-director" /></label>
+              <label class="field"><span>Referente</span><input type="text" id="f-referente" /></label>
+            </div>
+            <div class="pair">
+              <label class="field"><span>Email</span><input type="email" id="f-email" /></label>
+              <label class="field"><span>Teléfono</span><input type="text" id="f-telefono" /></label>
+            </div>
+            <label class="field"><span>Sitio web</span><input type="text" id="f-web" /></label>
           </div>
         </div>
 
-        <div class="group">
-          <h3 class="group-name">Personas</h3>
-          <p class="group-note">El director es la máxima autoridad de la institución. El referente es la persona
-            con la que hablamos nosotros. Pueden no ser la misma.</p>
-          <div class="pair">
-            <label class="field"><span>Director o autoridad</span><input type="text" id="f-director" /></label>
-            <label class="field"><span>Referente</span><input type="text" id="f-referente" /></label>
+        <!-- Estado del lead: cómo va nuestra gestión (columna M en adelante) -->
+        <div class="tab-panel hidden" data-panel="estado">
+          <div class="group">
+            <h3 class="group-name">Situación</h3>
+            <div class="pair">
+              <label class="field"><span>Estado</span>
+                <select id="f-estado">
+                  <option value="Pendiente">Pendiente</option>
+                  <option value="En proceso">En proceso</option>
+                  <option value="Contacto verificado">Contacto verificado</option>
+                  <option value="A completar">A completar</option>
+                  <option value="Descartado">Descartado</option>
+                </select>
+              </label>
+              <label class="field"><span>Contactado</span>
+                <select id="f-contactado">
+                  <option value="No">No</option>
+                  <option value="Sí">Sí</option>
+                </select>
+              </label>
+            </div>
+            <div class="pair">
+              <label class="field"><span>Primer contacto</span>
+                <input type="text" id="f-fechaContacto" placeholder="dd/mm/aaaa" />
+              </label>
+              <label class="field"><span>Quién contactó</span><input type="text" id="f-quienContacto" /></label>
+            </div>
+            <label class="field"><span>Notas generales</span>
+              <textarea id="f-notas" rows="3"></textarea>
+            </label>
+            <p class="group-note">El detalle de cada llamada o reunión va en el historial, que se abre
+              haciendo clic sobre la institución en el registro.</p>
           </div>
-          <div class="pair">
-            <label class="field"><span>Email</span><input type="email" id="f-email" /></label>
-            <label class="field"><span>Teléfono</span><input type="text" id="f-telefono" /></label>
-          </div>
-          <label class="field"><span>Sitio web</span><input type="text" id="f-web" /></label>
-        </div>
 
-        <div class="group">
-          <h3 class="group-name">Seguimiento</h3>
-          <div class="pair">
-            <label class="field"><span>Estado</span>
-              <select id="f-estado">
-                <option value="Pendiente">Pendiente</option>
-                <option value="En proceso">En proceso</option>
-                <option value="Contacto verificado">Contacto verificado</option>
-                <option value="A completar">A completar</option>
-                <option value="Descartado">Descartado</option>
-              </select>
+          <div class="group">
+            <h3 class="group-name">Recordatorio</h3>
+            <p class="group-note">Al guardar se crea una invitación en Google Calendar con esta fecha.
+              Si la cambiás, se reprograma.</p>
+            <div class="pair">
+              <label class="field"><span>Recordarme el</span>
+                <input type="datetime-local" id="f-recordatorioFecha" />
+              </label>
+              <label class="field"><span>Invitación para</span>
+                <input type="email" id="f-recordatorioEmailPreview" disabled />
+              </label>
+            </div>
+            <label class="field"><span>Qué tengo que hacer</span>
+              <textarea id="f-recordatorioInstrucciones" rows="2"
+                        placeholder="Llamar a Juan para confirmar la reunión"></textarea>
             </label>
-            <label class="field"><span>Contactado</span>
-              <select id="f-contactado">
-                <option value="No">No</option>
-                <option value="Sí">Sí</option>
-              </select>
-            </label>
+            <p class="rem-note hidden" id="reminder-status"></p>
           </div>
-          <div class="pair">
-            <label class="field"><span>Fecha de contacto</span>
-              <input type="text" id="f-fechaContacto" placeholder="dd/mm/aaaa" />
-            </label>
-            <label class="field"><span>Quién contactó</span><input type="text" id="f-quienContacto" /></label>
-          </div>
-          <label class="field"><span>Notas de la reunión</span>
-            <textarea id="f-notas" rows="3"></textarea>
-          </label>
-        </div>
-
-        <div class="group">
-          <h3 class="group-name">Recordatorio</h3>
-          <p class="group-note">Al guardar se crea una invitación en Google Calendar con esta fecha.
-            Si la cambiás, se reprograma.</p>
-          <div class="pair">
-            <label class="field"><span>Recordarme el</span>
-              <input type="datetime-local" id="f-recordatorioFecha" />
-            </label>
-            <label class="field"><span>Invitación para</span>
-              <input type="email" id="f-recordatorioEmailPreview" disabled />
-            </label>
-          </div>
-          <label class="field"><span>Qué tengo que hacer</span>
-            <textarea id="f-recordatorioInstrucciones" rows="2"
-                      placeholder="Llamar a Juan para confirmar la reunión"></textarea>
-          </label>
-          <p class="rem-note hidden" id="reminder-status"></p>
         </div>
 
         <input type="hidden" id="f-id" />

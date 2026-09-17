@@ -381,11 +381,18 @@ function dibujarTabla() {
       if (!info || info.tipo !== filtroRecordatorio) return false;
     }
     if (q) {
+      // El CUIT entra dos veces: como está escrito y en dígitos pelados, para
+      // poder buscarlo con guiones o sin ellos indistintamente.
       const texto = [
         r["Institución"], r["Referente"], r["Director / Autoridad"],
-        r["Email"], r["Ciudad"], r["Área / Rubro"], r["Notas"]
+        r["Email"], r["Ciudad"], r["Área / Rubro"], r["Notas"],
+        r["CUIT"], digitosCuit(r["CUIT"])
       ].join(" ").toLowerCase();
-      if (!texto.includes(q)) return false;
+      // Ojo: si la búsqueda no tiene dígitos, el alternativo queda vacío y
+      // includes("") daría verdadero siempre. Por eso solo se usa si quedó algo.
+      const soloDigitos = q.replace(/\D/g, "");
+      const coincide = texto.includes(q) || (soloDigitos.length >= 3 && texto.includes(soloDigitos));
+      if (!coincide) return false;
     }
     return true;
   });
@@ -779,6 +786,9 @@ function filaHtml(r, retardo) {
           (cuantos ? (r["Área / Rubro"] ? ", " : "") + cuantos +
             (cuantos === 1 ? " contacto" : " contactos") : "") + "</span>"
         : "") +
+      // El CUIT se muestra en la lista, no solo en el panel: sirve para
+      // distinguir de un vistazo dos fundaciones de nombre parecido.
+      (r["CUIT"] ? "<span class='record-cuit'>" + escapeHtml(formatearCuit(r["CUIT"])) + "</span>" : "") +
     "</td>" +
     celda(persona(r["Director / Autoridad"]), "Director", "person") +
     celda(persona(r["Referente"]), "Referente", "person") +
@@ -880,6 +890,77 @@ function recordatorio(info) {
     "</span>";
 }
 
+// ---------------- CUIT ----------------
+
+function digitosCuit(valor) {
+  return (valor === null || valor === undefined ? "" : valor).toString().replace(/\D/g, "");
+}
+
+function formatearCuit(valor) {
+  const d = digitosCuit(valor);
+  if (d.length !== 11) return (valor || "").toString().trim();
+  return d.slice(0, 2) + "-" + d.slice(2, 10) + "-" + d.slice(10);
+}
+
+// Dígito verificador del CUIT: detecta un número mal tipeado, que es
+// justamente lo que queremos evitar cuando dos fundaciones se llaman parecido.
+function cuitValido(valor) {
+  const d = digitosCuit(valor);
+  if (d.length !== 11) return false;
+
+  const pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  let suma = 0;
+  for (let i = 0; i < 10; i++) suma += Number(d[i]) * pesos[i];
+
+  let verificador = 11 - (suma % 11);
+  if (verificador === 11) verificador = 0;
+  if (verificador === 10) verificador = 9;
+
+  return verificador === Number(d[10]);
+}
+
+// Otra institución con el mismo CUIT es casi siempre un duplicado cargado dos
+// veces con nombres distintos.
+function cuitRepetido(valor, idPropio) {
+  const d = digitosCuit(valor);
+  if (d.length !== 11) return null;
+  return RECORDS.find(function (r) {
+    return String(r["ID"]) !== String(idPropio) && digitosCuit(r["CUIT"]) === d;
+  }) || null;
+}
+
+function revisarCuit() {
+  const nota = document.getElementById("cuit-note");
+  const campo = document.getElementById("f-cuit");
+  if (!nota || !campo) return;
+
+  const valor = campo.value.trim();
+  if (!valor) { nota.textContent = ""; nota.className = "field-note"; return; }
+
+  const d = digitosCuit(valor);
+  if (d.length !== 11) {
+    nota.textContent = "Un CUIT tiene 11 dígitos. Van " + d.length + ".";
+    nota.className = "field-note warn";
+    return;
+  }
+
+  if (!cuitValido(valor)) {
+    nota.textContent = "Ese CUIT no pasa la validación. Revisá si hay un dígito cambiado.";
+    nota.className = "field-note warn";
+    return;
+  }
+
+  const duplicado = cuitRepetido(valor, document.getElementById("f-id").value);
+  if (duplicado) {
+    nota.textContent = "Ojo: este CUIT ya está cargado en " + duplicado["Institución"] + ".";
+    nota.className = "field-note warn";
+    return;
+  }
+
+  nota.textContent = "CUIT válido.";
+  nota.className = "field-note ok";
+}
+
 function escapeHtml(str) {
   if (str === undefined || str === null) return "";
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -955,6 +1036,20 @@ function cerrarPanel() {
   els.drawer.classList.add("hidden");
 }
 
+// El CUIT se revisa mientras se escribe, pero nunca frena el guardado: hay
+// instituciones cuyo CUIT todavía no conseguimos y conviene poder cargarlas
+// igual, con el aviso a la vista.
+(function initCuit() {
+  const campo = document.getElementById("f-cuit");
+  if (!campo) return;
+  campo.addEventListener("input", revisarCuit);
+  campo.addEventListener("blur", function () {
+    const formateado = formatearCuit(campo.value.trim());
+    if (formateado) campo.value = formateado;
+    revisarCuit();
+  });
+})();
+
 function abrirAlta() {
   els.form.reset();
   document.getElementById("f-id").value = "";
@@ -963,6 +1058,7 @@ function abrirAlta() {
   els.drawerTitle.textContent = "Nueva institución";
   els.drawerSub.textContent = "Completá los datos y guardá";
   els.formError.classList.add("hidden");
+  revisarCuit();
   syncInvitacion();
   abrirPanel();
   document.getElementById("f-institucion").focus();
@@ -974,6 +1070,7 @@ function abrirEdicion(id) {
 
   document.getElementById("f-id").value = r["ID"];
   document.getElementById("f-institucion").value = r["Institución"] || "";
+  document.getElementById("f-cuit").value = formatearCuit(r["CUIT"] || "");
   document.getElementById("f-area").value = r["Área / Rubro"] || "";
   document.getElementById("f-ciudad").value = r["Ciudad"] || "";
   document.getElementById("f-descripcion").value = r["Descripción"] || "";
@@ -1021,6 +1118,7 @@ function abrirEdicion(id) {
   els.drawerTitle.textContent = r["Institución"] || "Institución";
   els.drawerSub.textContent = r["Área / Rubro"] || "Editar registro";
   els.formError.classList.add("hidden");
+  revisarCuit();
   abrirPanel();
 }
 
@@ -1059,6 +1157,7 @@ els.form.addEventListener("submit", function (e) {
 
   const record = {
     "Institución": document.getElementById("f-institucion").value.trim(),
+    "CUIT": formatearCuit(document.getElementById("f-cuit").value.trim()),
     "Área / Rubro": document.getElementById("f-area").value.trim(),
     "Ciudad": document.getElementById("f-ciudad").value.trim(),
     "Descripción": document.getElementById("f-descripcion").value.trim(),

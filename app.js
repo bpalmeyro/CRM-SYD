@@ -174,10 +174,61 @@ function contarHasta(el, destino) {
   })(inicio);
 }
 
+// El pedido al servidor tarda unos segundos aunque esté todo bien, y ese rato
+// el operador mira una tabla vacía. Guardamos la última copia del registro en
+// el navegador para pintarla apenas abre, mientras el pedido real viaja por
+// detrás. Lo que ve primero puede estar unos minutos atrasado, así que el
+// botón de recargar gira hasta que llega lo fresco y entonces se redibuja.
+const CACHE_KEY = "crmRegistro";
+const CACHE_VERSION = 1;
+
+function leerCacheLocal() {
+  try {
+    const crudo = localStorage.getItem(CACHE_KEY);
+    if (!crudo) return null;
+    const guardado = JSON.parse(crudo);
+    // Una copia vieja de antes de un cambio de formato haría más daño que
+    // bien: si la versión no coincide, se ignora y se espera al servidor.
+    if (guardado.version !== CACHE_VERSION || !Array.isArray(guardado.data)) return null;
+    return guardado;
+  } catch (e) {
+    return null;
+  }
+}
+
+function guardarCacheLocal() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      version: CACHE_VERSION,
+      data: RECORDS,
+      contactos: CONTACTOS
+    }));
+  } catch (e) {
+    // Modo incógnito o espacio lleno: se pierde la copia, no la aplicación.
+  }
+}
+
+function marcarRefrescando(activo) {
+  els.btnRefresh.classList.toggle("is-refreshing", !!activo);
+  els.btnRefresh.title = activo ? "Buscando cambios" : "Recargar datos";
+}
+
 async function cargarDatos() {
-  els.tableBody.innerHTML =
-    '<tr><td colspan="7" class="state-msg">' +
-    '<div class="loading-line"><span class="pulse"></span> Trayendo el registro</div></td></tr>';
+  if (!RECORDS.length) {
+    const guardado = leerCacheLocal();
+    if (guardado) {
+      RECORDS = guardado.data;
+      CONTACTOS = guardado.contactos || [];
+      poblarFiltros();
+      dibujar();
+    } else {
+      els.tableBody.innerHTML =
+        '<tr><td colspan="7" class="state-msg">' +
+        '<div class="loading-line"><span class="pulse"></span> Trayendo el registro</div></td></tr>';
+    }
+  }
+
+  marcarRefrescando(true);
   try {
     const json = await pedir({ method: "GET" });
     RECORDS = json.data;
@@ -187,14 +238,22 @@ async function cargarDatos() {
     poblarFiltros();
     dibujar();
   } catch (err) {
-    els.tableBody.innerHTML =
-      '<tr><td colspan="7" class="state-msg">' +
-      "<p>No pudimos traer el registro</p>" +
-      "<span>El servidor tardó demasiado o rechazó el pedido. Suele pasar cuando estuvo " +
-      "un rato sin uso. Motivo: " + escapeHtml(err.message) + "</span>" +
-      '<button class="btn btn-quiet" id="btn-reintentar">Reintentar</button></td></tr>';
-    const btn = document.getElementById("btn-reintentar");
-    if (btn) btn.addEventListener("click", cargarDatos);
+    // Si ya hay algo en pantalla, dejarlo: una tabla de hace unos minutos sirve
+    // mucho más que un cartel de error. Solo avisamos que quedó desactualizada.
+    if (RECORDS.length) {
+      avisar("Estás viendo la última copia guardada: el servidor no respondió.", "warn");
+    } else {
+      els.tableBody.innerHTML =
+        '<tr><td colspan="7" class="state-msg">' +
+        "<p>No pudimos traer el registro</p>" +
+        "<span>El servidor tardó demasiado o rechazó el pedido. Suele pasar cuando estuvo " +
+        "un rato sin uso. Motivo: " + escapeHtml(err.message) + "</span>" +
+        '<button class="btn btn-quiet" id="btn-reintentar">Reintentar</button></td></tr>';
+      const btn = document.getElementById("btn-reintentar");
+      if (btn) btn.addEventListener("click", cargarDatos);
+    }
+  } finally {
+    marcarRefrescando(false);
   }
 }
 
@@ -202,6 +261,9 @@ function dibujar() {
   dibujarCola();
   dibujarEstados();
   dibujarTabla();
+  // Se guarda acá y no solo al traer del servidor: así la copia local también
+  // refleja las ediciones que el operador acaba de hacer.
+  guardarCacheLocal();
 }
 
 els.btnRefresh.addEventListener("click", cargarDatos);

@@ -192,6 +192,11 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .icon-btn:hover { color: var(--ink); border-color: var(--rule-strong); background: var(--plane); }
 .icon-btn svg { width: 15px; height: 15px; display: block; }
 
+/* El registro se pinta con la última copia guardada y el pedido real sigue en
+   camino: el giro es la única señal de que lo que se ve todavía puede cambiar. */
+.icon-btn.is-refreshing { color: var(--accent); }
+.icon-btn.is-refreshing svg { animation: girar 0.9s linear infinite; }
+
 /* ---------- Banda de trabajo ---------- */
 .worklane {
   display: flex;
@@ -569,6 +574,7 @@ tbody tr:hover .row-action button,
 .notice.show { opacity: 1; transform: translateY(0); }
 .notice.ok { border-left-color: var(--verified); }
 .notice.bad { border-left-color: var(--overdue); }
+.notice.warn { border-left-color: var(--today); }
 
 /* ---------- Pie ---------- */
 .app-foot {
@@ -764,6 +770,7 @@ tr.is-open .chev { transform: rotate(90deg); }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideIn { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+@keyframes girar { to { transform: rotate(360deg); } }
 
 /* Las filas entran escalonadas, con el retardo acotado desde JS para que
    125 registros no tarden más que unos pocos. */

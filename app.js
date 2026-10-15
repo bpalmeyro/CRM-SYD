@@ -43,6 +43,7 @@ const els = {
   drawerSub: document.getElementById("drawer-sub"),
   drawerClose: document.getElementById("drawer-close"),
   btnCancel: document.getElementById("btn-cancel"),
+  btnDelete: document.getElementById("btn-delete"),
   form: document.getElementById("form-record"),
   formError: document.getElementById("form-error"),
 
@@ -1085,6 +1086,7 @@ window.addEventListener("resize", moverIndicador);
 let fechaRecordatorioOriginal = ""; // para saber si el operador cambió la fecha
 
 function abrirPanel() {
+  desarmarBorrado();
   els.drawerScrim.classList.remove("hidden");
   els.drawer.classList.remove("hidden");
   // El indicador se mide recién con el panel visible: con el panel oculto
@@ -1096,6 +1098,69 @@ function abrirPanel() {
 function cerrarPanel() {
   els.drawerScrim.classList.add("hidden");
   els.drawer.classList.add("hidden");
+  desarmarBorrado();
+}
+
+// ---------------- Borrar institución ----------------
+
+// Borrar pide dos clics en vez de un cartel del navegador: el segundo clic cae
+// sobre un botón que ya cambió de texto y de color, así que no se puede
+// confirmar de memoria sin leer. Igual el borrado no es definitivo — el
+// registro queda en la papelera de la planilla.
+let borradoArmado = false;
+
+function desarmarBorrado() {
+  borradoArmado = false;
+  els.btnDelete.textContent = "Borrar";
+  els.btnDelete.classList.remove("confirmando");
+}
+
+els.btnDelete.addEventListener("click", function () {
+  const id = document.getElementById("f-id").value;
+  if (!id) return;
+
+  if (!borradoArmado) {
+    borradoArmado = true;
+    els.btnDelete.textContent = "Confirmar borrado";
+    els.btnDelete.classList.add("confirmando");
+    els.formError.textContent = "Va a la papelera, no se pierde: se puede recuperar.";
+    els.formError.classList.remove("hidden");
+    return;
+  }
+
+  borrarInstitucion(id);
+});
+
+function borrarInstitucion(id) {
+  const idx = RECORDS.findIndex(function (r) { return String(r["ID"]) === String(id); });
+  if (idx === -1) return;
+
+  const anterior = RECORDS[idx];
+  const nombre = anterior["Institución"] || "el registro";
+
+  // Igual que al guardar: sacamos la fila de la vista y cerramos el panel
+  // enseguida, y si el servidor rechaza el borrado la devolvemos a su lugar.
+  RECORDS.splice(idx, 1);
+  dibujar();
+  cerrarPanel();
+
+  (async function () {
+    try {
+      // Un solo intento: si el primer pedido llegó y solo se perdió la
+      // respuesta, el reintento contestaría "no se encontró el ID" y
+      // mostraríamos un error por algo que en realidad salió bien.
+      await pedirUnaVez({
+        method: "POST",
+        body: JSON.stringify({ action: "delete", id: id })
+      });
+      avisar("Mandamos " + nombre + " a la papelera", "ok");
+      await cargarDatos();
+    } catch (err) {
+      RECORDS.splice(idx, 0, anterior);
+      dibujar();
+      avisar("No pudimos borrar " + nombre + ". " + err.message, "bad");
+    }
+  })();
 }
 
 // El CUIT se revisa mientras se escribe, pero nunca frena el guardado: hay
@@ -1120,6 +1185,7 @@ function abrirAlta() {
   els.drawerTitle.textContent = "Nueva institución";
   els.drawerSub.textContent = "Completá los datos y guardá";
   els.formError.classList.add("hidden");
+  els.btnDelete.classList.add("hidden");
   revisarCuit();
   syncInvitacion();
   abrirPanel();
@@ -1180,6 +1246,10 @@ function abrirEdicion(id) {
   els.drawerTitle.textContent = r["Institución"] || "Institución";
   els.drawerSub.textContent = r["Área / Rubro"] || "Editar registro";
   els.formError.classList.add("hidden");
+  // Una institución recién creada que todavía no volvió del servidor tiene un
+  // ID provisorio que la planilla no conoce: no se puede borrar hasta que
+  // termine de guardarse.
+  els.btnDelete.classList.toggle("hidden", String(r["ID"]).indexOf("tmp-") === 0);
   revisarCuit();
   abrirPanel();
 }

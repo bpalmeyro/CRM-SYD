@@ -176,6 +176,11 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .btn-primary:hover { filter: brightness(1.08); }
 .btn-quiet { border-color: var(--rule); color: var(--ink-2); }
 .btn-quiet:hover { color: var(--ink); border-color: var(--rule-strong); background: var(--plane); }
+/* Borrar queda lejos de Guardar, apagado hasta que el mouse pasa por encima:
+   no tiene que competir por la atención con la acción que se usa siempre. */
+.btn-danger { border-color: var(--rule); color: var(--ink-2); }
+.btn-danger:hover { color: var(--overdue); border-color: var(--overdue); background: transparent; }
+.btn-danger.confirmando { color: var(--overdue); border-color: var(--overdue); }
 
 .icon-btn {
   width: 32px;
@@ -544,7 +549,12 @@ tbody tr:hover .row-action button,
   border-top: 1px solid var(--rule);
   flex-shrink: 0;
 }
-.form-error { color: var(--overdue); font-size: 0.81rem; margin-right: auto; line-height: 1.4; }
+.drawer-foot .btn-danger { margin-right: auto; }
+/* El margen automático lo pone el botón de borrar; cuando está oculto (alta de
+   una institución nueva) lo toma el cartel de error, que si no queda pegado a
+   Cancelar en vez de arrancar desde la izquierda. */
+.drawer-foot .btn-danger.hidden + .form-error { margin-right: auto; }
+.form-error { color: var(--overdue); font-size: 0.81rem; line-height: 1.4; }
 .rem-note { font-size: 0.79rem; color: var(--ink-2); margin: 12px 0 0; line-height: 1.45; }
 .rem-note.warn { color: var(--today); }
 

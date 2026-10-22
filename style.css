@@ -182,6 +182,120 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; colo
 .btn-danger:hover { color: var(--overdue); border-color: var(--overdue); background: transparent; }
 .btn-danger.confirmando { color: var(--overdue); border-color: var(--overdue); }
 
+/* ---------- Cambio de vista: Registro / Panorama ---------- */
+.vistas { display: flex; gap: 2px; margin-left: 26px; }
+.vista {
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  padding: 6px 12px;
+  border-radius: var(--r);
+  cursor: pointer;
+  font-size: 0.84rem;
+  position: relative;
+  transition: color 0.14s ease;
+}
+.vista:hover { color: var(--ink); }
+.vista[aria-pressed="true"] { color: var(--ink); font-weight: 500; }
+/* Subrayado en vez de fondo: la barra superior ya tiene suficiente peso. */
+.vista[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  left: 12px; right: 12px; bottom: -1px;
+  height: 2px;
+  background: var(--accent);
+}
+
+/* ---------- Panorama ---------- */
+.panorama { padding: 22px 26px 40px; display: flex; flex-direction: column; gap: 16px; }
+.panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panel {
+  background: var(--plane);
+  border: 1px solid var(--rule);
+  border-radius: var(--r);
+  padding: 18px 20px 20px;
+  min-width: 0;   /* si no, una etiqueta larga estira la columna de la grilla */
+}
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.panel h3 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+.panel-note { font-size: 0.76rem; color: var(--ink-3); text-align: right; }
+.panel-vacio { margin: 0; color: var(--ink-3); font-size: 0.84rem; line-height: 1.5; }
+.panel-alerta {
+  margin: 16px 0 0;
+  padding-left: 11px;
+  border-left: 2px solid var(--today);
+  color: var(--ink-2);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* Avance: los números del pipeline, de mayor a menor */
+.avance { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+.avance-paso { flex: 1 1 0; min-width: 120px; padding: 0 18px; border-left: 1px solid var(--rule); }
+.avance-paso:first-child { padding-left: 0; border-left: none; }
+.avance-figura { font-family: var(--serif); font-size: 2rem; line-height: 1.1; display: block; }
+.avance-etq { font-size: 0.79rem; color: var(--ink-2); display: block; margin-top: 4px; }
+.avance-pct { font-size: 0.75rem; color: var(--ink-3); display: block; margin-top: 2px; font-family: var(--mono); }
+.avance-paso.es-salida .avance-figura { color: var(--overdue); }
+
+/* Barras horizontales: el patrón de todo el panorama */
+.barras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.barra { display: grid; grid-template-columns: minmax(0, 11rem) 1fr auto; align-items: center; gap: 12px; }
+.barra-etq {
+  font-size: 0.82rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.barra-pista { height: 7px; background: var(--rule); border-radius: 1px; overflow: hidden; }
+.barra-llena { display: block; height: 100%; border-radius: 1px; }
+.barra-n { font-family: var(--mono); font-size: 0.8rem; color: var(--ink); min-width: 2.2rem; text-align: right; }
+.barra-n em { font-style: normal; color: var(--ink-3); font-size: 0.74rem; }
+
+/* Columnas: actividad mes a mes */
+.columnas { display: flex; align-items: flex-end; gap: 5px; height: 128px; margin-bottom: 8px; }
+.columna { flex: 1 1 0; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; min-width: 0; }
+.columna-llena { background: var(--accent); border-radius: 1px 1px 0 0; min-height: 2px; }
+.columna.vacia .columna-llena { background: var(--rule); }
+.columnas-pie { display: flex; gap: 5px; }
+.columnas-pie span {
+  flex: 1 1 0;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+.columna-valor {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--ink-2);
+  text-align: center;
+  margin-bottom: 3px;
+}
+
+/* Bloque de descarte dentro del formulario */
+.descarte {
+  border-left: 2px solid var(--overdue);
+  padding-left: 14px;
+  margin: 4px 0 14px;
+}
+
 .icon-btn {
   width: 32px;
   height: 32px;
@@ -804,6 +918,19 @@ body, .plane, .drawer, .detail-wrap, thead th, .notice {
 /* ---------- Angosto: la tabla pasa a registro vertical ---------- */
 @media (max-width: 900px) {
   .topbar, .filters { padding-left: 18px; padding-right: 18px; }
+  .panorama { padding-left: 18px; padding-right: 18px; }
+  /* Dos paneles al lado del otro no entran: las barras quedarían de 3 cm. */
+  .panel-row { grid-template-columns: 1fr; }
+  .vistas { margin-left: 0; }
+  /* Las etiquetas largas se comen la barra en pantalla angosta: van arriba. */
+  .barra { grid-template-columns: 1fr auto; row-gap: 5px; }
+  .barra-etq { grid-column: 1 / -1; white-space: normal; }
+  /* Al envolver en varias filas, los separadores verticales quedan sueltos y
+     cortados: en angosto van dos por fila, separados por aire. */
+  .avance { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 0; }
+  .avance-paso { padding: 0 14px 0 0; border-left: none; }
+  .avance-paso:nth-child(even) { padding: 0 0 0 14px; border-left: 1px solid var(--rule); }
+  .avance-figura { font-size: 1.7rem; }
   .worklane-total { padding: 18px; flex-basis: 100%; }
   .worklane-queue { width: 100%; border-top: 1px solid var(--rule); }
   .queue-item { padding: 14px 18px; }

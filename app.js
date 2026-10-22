@@ -52,8 +52,21 @@ const els = {
   recordatorioEmailPreview: document.getElementById("f-recordatorioEmailPreview"),
   reminderStatus: document.getElementById("reminder-status"),
 
+  motivoDescarte: document.getElementById("f-motivoDescarte"),
+  detalleDescarte: document.getElementById("f-detalleDescarte"),
+  bloqueDescarte: document.getElementById("bloque-descarte"),
+
+  vistas: document.getElementById("vistas"),
+  panorama: document.getElementById("panorama"),
+
   notices: document.getElementById("notices")
 };
+
+// Las secciones que forman la vista "Registro": se ocultan juntas al pasar a
+// Panorama. Los filtros no tienen sentido ahí (el panorama siempre mira el
+// registro completo, si no los números dirían una cosa distinta según qué
+// filtro quedó puesto).
+const SECCIONES_REGISTRO = [".worklane", ".filters", ".plane"];
 
 // ---------------- Tema (oscuro por defecto) ----------------
 
@@ -262,6 +275,9 @@ function dibujar() {
   dibujarCola();
   dibujarEstados();
   dibujarTabla();
+  // Solo si está a la vista: recalcular ocho gráficos que nadie está mirando
+  // es trabajo al pedo en cada tecla del buscador.
+  if (vistaActual === "panorama") dibujarPanorama();
   // Se guarda acá y no solo al traer del servidor: así la copia local también
   // refleja las ediciones que el operador acaba de hacer.
   guardarCacheLocal();
@@ -428,6 +444,297 @@ els.estadoLegend.addEventListener("click", function (e) {
   dibujarEstados();
   dibujarTabla();
 });
+
+// ---------------- Panorama ----------------
+//
+// Lectura del registro en conjunto. Siempre mira TODAS las instituciones, sin
+// importar los filtros del registro: un panel que cambia según el filtro que
+// quedó puesto invita a leer mal los números.
+
+let vistaActual = "registro";
+
+function mostrarVista(nombre) {
+  vistaActual = nombre;
+
+  SECCIONES_REGISTRO.forEach(function (sel) {
+    const el = document.querySelector(sel);
+    if (el) el.classList.toggle("hidden", nombre !== "registro");
+  });
+  els.panorama.classList.toggle("hidden", nombre !== "panorama");
+
+  Array.from(els.vistas.querySelectorAll(".vista")).forEach(function (b) {
+    b.setAttribute("aria-pressed", String(b.getAttribute("data-vista") === nombre));
+  });
+
+  if (nombre === "panorama") dibujarPanorama();
+}
+
+els.vistas.addEventListener("click", function (e) {
+  const b = e.target.closest(".vista");
+  if (b) mostrarVista(b.getAttribute("data-vista"));
+});
+
+/** "1 institución" / "5 instituciones", sin los "(es)" que afean el texto. */
+function plural(n, singular, pluralForma) {
+  return n + " " + (n === 1 ? singular : pluralForma);
+}
+
+/** Cuenta cuántas veces aparece cada valor y lo devuelve ordenado de mayor a menor. */
+function contarPor(lista, obtener) {
+  const cuentas = {};
+  lista.forEach(function (x) {
+    const v = (obtener(x) || "").toString().trim();
+    if (!v) return;
+    cuentas[v] = (cuentas[v] || 0) + 1;
+  });
+  return Object.keys(cuentas)
+    .map(function (k) { return { etiqueta: k, n: cuentas[k] }; })
+    .sort(function (a, b) { return b.n - a.n; });
+}
+
+/**
+ * Barras horizontales, el patrón que usa todo el panorama.
+ * El largo es relativo al valor más alto (no al total): con repartos muy
+ * desparejos, escalar contra el total deja a casi todas las barras invisibles.
+ */
+function barrasHtml(items, opciones) {
+  const o = opciones || {};
+  if (!items.length) {
+    return "<p class='panel-vacio'>" + escapeHtml(o.vacio || "Todavía no hay datos.") + "</p>";
+  }
+
+  const max = items.reduce(function (m, i) { return Math.max(m, i.n); }, 1);
+  const total = o.total || items.reduce(function (s, i) { return s + i.n; }, 0);
+
+  return "<ul class='barras'>" + items.map(function (i) {
+    const ancho = (i.n / max) * 100;
+    const parte = total ? Math.round((i.n / total) * 100) : 0;
+    return "<li class='barra'>" +
+      "<span class='barra-etq' title='" + escapeAttr(i.etiqueta) + "'>" + escapeHtml(i.etiqueta) + "</span>" +
+      "<span class='barra-pista'><span class='barra-llena' style='width:" + ancho.toFixed(1) +
+        "%;background:" + (i.color || o.color || "var(--ink-3)") + "'></span></span>" +
+      "<span class='barra-n'>" + i.n +
+        (o.porcentaje ? " <em>" + parte + "%</em>" : "") + "</span>" +
+      "</li>";
+  }).join("") + "</ul>";
+}
+
+function dibujarPanorama() {
+  dibujarAvance();
+  dibujarMotivos();
+  dibujarCanales();
+  dibujarActividad();
+  dibujarCompletitud();
+  dibujarAreas();
+  dibujarAlcance();
+  dibujarQuien();
+}
+
+function tieneHistorial(r) {
+  return CONTACTOS.some(function (c) { return String(c["ID Institución"]) === String(r["ID"]); });
+}
+
+function fueContactada(r) {
+  return String(r["Contactado"]).trim() === "Sí" || tieneHistorial(r);
+}
+
+function dibujarAvance() {
+  const total = RECORDS.length;
+  const porEstado = function (e) {
+    return RECORDS.filter(function (r) { return String(r["Estado"]).trim() === e; }).length;
+  };
+
+  const contactadas = RECORDS.filter(fueContactada).length;
+  const pasos = [
+    { etiqueta: "Registradas", n: total },
+    { etiqueta: "Contactadas", n: contactadas },
+    { etiqueta: "En proceso", n: porEstado("En proceso") },
+    { etiqueta: "Contacto verificado", n: porEstado("Contacto verificado") },
+    { etiqueta: "Descartadas", n: porEstado("Descartado"), salida: true }
+  ];
+
+  document.getElementById("pan-avance").innerHTML = pasos.map(function (p) {
+    const pct = total ? Math.round((p.n / total) * 100) : 0;
+    return "<div class='avance-paso" + (p.salida ? " es-salida" : "") + "'>" +
+      "<span class='avance-figura'>" + p.n + "</span>" +
+      "<span class='avance-etq'>" + escapeHtml(p.etiqueta) + "</span>" +
+      "<span class='avance-pct'>" + pct + "% del total</span>" +
+      "</div>";
+  }).join("");
+
+  const sinTocar = total - contactadas;
+  document.getElementById("pan-avance-note").textContent =
+    plural(sinTocar, "institución sin contactar", "instituciones sin contactar");
+
+  // Una institución "en proceso" o "verificada" que figura como no contactada
+  // es una contradicción del registro, no un dato: conviene que se vea, porque
+  // si no los números de arriba se leen como si estuvieran bien.
+  const raras = RECORDS.filter(function (r) {
+    const e = String(r["Estado"]).trim();
+    return (e === "En proceso" || e === "Contacto verificado") && !fueContactada(r);
+  });
+
+  const alerta = document.getElementById("pan-incoherencias");
+  if (raras.length) {
+    const nombres = raras.slice(0, 6).map(function (r) { return r["Institución"]; }).join(", ");
+    alerta.textContent = plural(raras.length, "institución figura", "instituciones figuran") +
+      " en una etapa avanzada pero sin marcar como contactada: " +
+      nombres + (raras.length > 6 ? " y " + (raras.length - 6) + " más." : ".");
+    alerta.classList.remove("hidden");
+  } else {
+    alerta.classList.add("hidden");
+  }
+}
+
+function dibujarMotivos() {
+  const descartadas = RECORDS.filter(function (r) {
+    return String(r["Estado"]).trim() === "Descartado";
+  });
+  const conMotivo = contarPor(descartadas, function (r) { return r["Motivo de Descarte"]; });
+
+  const sinMotivo = descartadas.length - conMotivo.reduce(function (s, i) { return s + i.n; }, 0);
+  let html = barrasHtml(conMotivo, {
+    porcentaje: true,
+    color: "var(--overdue)",
+    vacio: descartadas.length
+      ? "Hay " + plural(descartadas.length, "institución descartada", "instituciones descartadas") +
+        ", pero sin el motivo cargado. Se elige al poner el estado en Descartado."
+      : "Todavía no hay instituciones descartadas."
+  });
+
+  if (conMotivo.length && sinMotivo > 0) {
+    html += "<p class='panel-alerta'>" +
+      plural(sinMotivo, "descarte sin motivo cargado", "descartes sin motivo cargado") + ".</p>";
+  }
+  document.getElementById("pan-motivos").innerHTML = html;
+}
+
+function dibujarCanales() {
+  const items = contarPor(CONTACTOS, function (c) { return c["Canal"]; });
+  document.getElementById("pan-canales").innerHTML = barrasHtml(items, {
+    porcentaje: true,
+    color: "var(--accent)",
+    vacio: "Todavía no hay contactos registrados en el historial."
+  });
+}
+
+/** Los últimos 12 meses de actividad, incluidos los meses sin nada. */
+function dibujarActividad() {
+  const ahora = new Date();
+  const meses = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(ahora.getFullYear(), ahora.getMonth() - i, 1);
+    meses.push({ clave: d.getFullYear() + "-" + pad(d.getMonth() + 1), fecha: d, n: 0 });
+  }
+  const indice = {};
+  meses.forEach(function (m) { indice[m.clave] = m; });
+
+  let fueraDeRango = 0;
+  let sinFecha = 0;
+  CONTACTOS.forEach(function (c) {
+    const f = parseFecha(c["Fecha"]);
+    if (!f) { sinFecha++; return; }
+    const clave = f.getFullYear() + "-" + pad(f.getMonth() + 1);
+    if (indice[clave]) indice[clave].n++;
+    else fueraDeRango++;
+  });
+
+  const max = meses.reduce(function (m, x) { return Math.max(m, x.n); }, 1);
+  const NOMBRES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+
+  const columnas = meses.map(function (m) {
+    const alto = (m.n / max) * 100;
+    return "<div class='columna" + (m.n ? "" : " vacia") + "' title='" +
+      escapeAttr(NOMBRES[m.fecha.getMonth()] + " " + m.fecha.getFullYear() + ": " + m.n) + "'>" +
+      (m.n ? "<span class='columna-valor'>" + m.n + "</span>" : "") +
+      "<span class='columna-llena' style='height:" + Math.max(alto, m.n ? 4 : 1.5).toFixed(1) + "%'></span>" +
+      "</div>";
+  }).join("");
+
+  const pie = meses.map(function (m) {
+    return "<span>" + NOMBRES[m.fecha.getMonth()] + (m.fecha.getMonth() === 0
+      ? "<br>" + String(m.fecha.getFullYear()).slice(2) : "") + "</span>";
+  }).join("");
+
+  let html = "<div class='columnas'>" + columnas + "</div><div class='columnas-pie'>" + pie + "</div>";
+
+  const avisos = [];
+  if (fueraDeRango) {
+    avisos.push(plural(fueraDeRango, "contacto anterior", "contactos anteriores") + " a estos 12 meses");
+  }
+  if (sinFecha) {
+    avisos.push(plural(sinFecha, "contacto sin fecha", "contactos sin fecha"));
+  }
+  if (avisos.length) html += "<p class='panel-alerta'>No entran en el gráfico: " + avisos.join("; ") + ".</p>";
+
+  document.getElementById("pan-actividad").innerHTML = html;
+}
+
+// Los campos que importan para poder trabajar una institución. El orden es el
+// que usa el panel: se muestra lo que FALTA, no lo que hay, porque lo que
+// falta es lo accionable.
+const CAMPOS_CLAVE = [
+  "CUIT", "Email", "Teléfono", "Web", "Referente",
+  "Director / Autoridad", "Ciudad", "Área / Rubro", "Alcance"
+];
+
+function dibujarCompletitud() {
+  const total = RECORDS.length;
+  const items = CAMPOS_CLAVE.map(function (campo) {
+    const faltan = RECORDS.filter(function (r) {
+      return !String(r[campo] === undefined || r[campo] === null ? "" : r[campo]).trim();
+    }).length;
+    return {
+      etiqueta: campo,
+      n: faltan,
+      // Rojo cuando falta en más de la mitad: ahí ya no es un hueco suelto.
+      color: faltan > total / 2 ? "var(--overdue)" : "var(--today)"
+    };
+  }).filter(function (i) { return i.n > 0; })
+    .sort(function (a, b) { return b.n - a.n; });
+
+  document.getElementById("pan-completitud").innerHTML = barrasHtml(items, {
+    total: total,
+    porcentaje: true,
+    vacio: "No falta ningún dato clave."
+  });
+}
+
+function dibujarAreas() {
+  const todas = contarPor(RECORDS, function (r) { return r["Área / Rubro"]; });
+  const top = todas.slice(0, 10);
+
+  document.getElementById("pan-areas").innerHTML = barrasHtml(top, {
+    total: RECORDS.length,
+    vacio: "Todavía no hay áreas cargadas."
+  }) + (todas.length > 10
+    ? "<p class='panel-alerta'>Hay " + todas.length + " rubros distintos para " + RECORDS.length +
+      " instituciones, porque el campo es texto libre: conviven “Salud”, “Salud y Apoyo Hospitalario” " +
+      "y “Cáncer” como categorías separadas. Unificarlos haría este gráfico mucho más útil.</p>"
+    : "");
+
+  document.getElementById("pan-areas-note").textContent = todas.length + " rubros distintos";
+}
+
+function dibujarAlcance() {
+  const items = contarPor(RECORDS, function (r) { return r["Alcance"]; });
+  const sin = RECORDS.length - items.reduce(function (s, i) { return s + i.n; }, 0);
+
+  document.getElementById("pan-alcance").innerHTML = barrasHtml(items, {
+    total: RECORDS.length,
+    porcentaje: true,
+    vacio: "Todavía no hay alcances cargados."
+  }) + (sin ? "<p class='panel-alerta'>" + sin + " sin alcance cargado.</p>" : "");
+}
+
+function dibujarQuien() {
+  const items = contarPor(CONTACTOS, function (c) { return c["Quién"]; });
+  document.getElementById("pan-quien").innerHTML = barrasHtml(items, {
+    porcentaje: true,
+    color: "var(--accent)",
+    vacio: "Todavía no hay contactos registrados."
+  });
+}
 
 // ---------------- Registro ----------------
 
@@ -1163,6 +1470,15 @@ function borrarInstitucion(id) {
   })();
 }
 
+// El motivo solo aparece cuando el estado es Descartado: pedirlo siempre sería
+// ruido en el 98% de las fichas.
+function syncDescarte() {
+  const esDescarte = document.getElementById("f-estado").value === "Descartado";
+  els.bloqueDescarte.classList.toggle("hidden", !esDescarte);
+}
+
+document.getElementById("f-estado").addEventListener("change", syncDescarte);
+
 // El CUIT se revisa mientras se escribe, pero nunca frena el guardado: hay
 // instituciones cuyo CUIT todavía no conseguimos y conviene poder cargarlas
 // igual, con el aviso a la vista.
@@ -1187,6 +1503,7 @@ function abrirAlta() {
   els.formError.classList.add("hidden");
   els.btnDelete.classList.add("hidden");
   revisarCuit();
+  syncDescarte();
   syncInvitacion();
   abrirPanel();
   document.getElementById("f-institucion").focus();
@@ -1225,6 +1542,19 @@ function abrirEdicion(id) {
     selEstado.appendChild(opt);
   }
   selEstado.value = estadoActual;
+
+  // Lo mismo que con el estado: si el motivo guardado no está en la lista
+  // (porque la lista cambió después), lo sumamos para no borrarlo al guardar.
+  const motivoActual = r["Motivo de Descarte"] || "";
+  if (motivoActual && !Array.from(els.motivoDescarte.options).some(function (o) { return o.value === motivoActual; })) {
+    const opt = document.createElement("option");
+    opt.value = motivoActual;
+    opt.textContent = motivoActual;
+    els.motivoDescarte.appendChild(opt);
+  }
+  els.motivoDescarte.value = motivoActual;
+  els.detalleDescarte.value = r["Detalle del Descarte"] || "";
+  syncDescarte();
 
   const fechaLocal = isoADatetimeLocal(r["Recordatorio Fecha"]);
   els.recordatorioFecha.value = fechaLocal;
@@ -1306,6 +1636,19 @@ els.form.addEventListener("submit", function (e) {
     "Quién contactó": document.getElementById("f-quienContacto").value.trim(),
     "Notas": document.getElementById("f-notas").value.trim()
   };
+
+  // El motivo se manda siempre, también vacío: si alguien saca una institución
+  // de "Descartado", el motivo viejo tiene que irse con ella. Si no, quedaría
+  // contándose en el panel una negación que ya no existe.
+  const esDescarte = record["Estado"] === "Descartado";
+  record["Motivo de Descarte"] = esDescarte ? els.motivoDescarte.value : "";
+  record["Detalle del Descarte"] = esDescarte ? els.detalleDescarte.value.trim() : "";
+
+  if (esDescarte && !record["Motivo de Descarte"]) {
+    els.formError.textContent = "Elegí el motivo del descarte: es lo que después se ve en el panorama.";
+    els.formError.classList.remove("hidden");
+    return;
+  }
 
   // Solo mandamos los campos del recordatorio si hay algo cargado, y solo
   // reseteamos el flag "enviado" cuando la fecha efectivamente cambió.

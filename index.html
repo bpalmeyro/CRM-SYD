@@ -31,6 +31,10 @@
         Soñar y Donar
         <em>Registro de instituciones</em>
       </div>
+      <nav class="vistas" id="vistas" aria-label="Vista">
+        <button type="button" class="vista" data-vista="registro" aria-pressed="true">Registro</button>
+        <button type="button" class="vista" data-vista="panorama" aria-pressed="false">Panorama</button>
+      </nav>
       <div class="topbar-right">
         <div class="operator">
           <input type="email" id="operator-email" placeholder="Tu email" autocomplete="email"
@@ -103,6 +107,79 @@
           </tbody>
         </table>
       </div>
+    </section>
+
+    <!-- Panorama: lectura del registro en conjunto -->
+    <section class="panorama hidden" id="panorama">
+
+      <div class="panel panel-ancho">
+        <div class="panel-head">
+          <h3>Avance del pipeline</h3>
+          <span class="panel-note" id="pan-avance-note"></span>
+        </div>
+        <div class="avance" id="pan-avance"></div>
+        <p class="panel-alerta hidden" id="pan-incoherencias"></p>
+      </div>
+
+      <div class="panel-row">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Motivos de descarte</h3>
+            <span class="panel-note">Por qué se cayeron</span>
+          </div>
+          <div id="pan-motivos"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Canales usados</h3>
+            <span class="panel-note">Sobre el historial de contactos</span>
+          </div>
+          <div id="pan-canales"></div>
+        </div>
+      </div>
+
+      <div class="panel panel-ancho">
+        <div class="panel-head">
+          <h3>Actividad por mes</h3>
+          <span class="panel-note">Contactos registrados en el historial</span>
+        </div>
+        <div id="pan-actividad"></div>
+      </div>
+
+      <div class="panel-row">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Qué falta cargar</h3>
+            <span class="panel-note">Instituciones sin el dato</span>
+          </div>
+          <div id="pan-completitud"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Áreas</h3>
+            <span class="panel-note" id="pan-areas-note"></span>
+          </div>
+          <div id="pan-areas"></div>
+        </div>
+      </div>
+
+      <div class="panel-row">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Alcance</h3>
+            <span class="panel-note">Hasta dónde llega cada una</span>
+          </div>
+          <div id="pan-alcance"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Quién registró contactos</h3>
+            <span class="panel-note">Entradas del historial</span>
+          </div>
+          <div id="pan-quien"></div>
+        </div>
+      </div>
+
     </section>
 
     <footer class="app-foot">
@@ -192,7 +269,6 @@
                   <option value="Pendiente">Pendiente</option>
                   <option value="En proceso">En proceso</option>
                   <option value="Contacto verificado">Contacto verificado</option>
-                  <option value="A completar">A completar</option>
                   <option value="Descartado">Descartado</option>
                 </select>
               </label>
@@ -209,6 +285,26 @@
               </label>
               <label class="field"><span>Quién contactó</span><input type="text" id="f-quienContacto" /></label>
             </div>
+            <div class="descarte hidden" id="bloque-descarte">
+              <label class="field"><span>Motivo del descarte</span>
+                <select id="f-motivoDescarte">
+                  <option value="">Elegí un motivo</option>
+                  <option value="No les interesa el formato">No les interesa el formato</option>
+                  <option value="No tienen experiencias ni famosos para aportar">No tienen experiencias ni famosos para aportar</option>
+                  <option value="Ya trabajan con otra plataforma">Ya trabajan con otra plataforma</option>
+                  <option value="El fee del 10% no les cierra">El fee del 10% no les cierra</option>
+                  <option value="Política interna: no aceptan intermediarios">Política interna: no aceptan intermediarios</option>
+                  <option value="Fuera de perfil">Fuera de perfil</option>
+                  <option value="No responde tras varios intentos">No responde tras varios intentos</option>
+                  <option value="Datos de contacto inválidos">Datos de contacto inválidos</option>
+                </select>
+              </label>
+              <label class="field"><span>Detalle (opcional)</span>
+                <textarea id="f-detalleDescarte" rows="2"
+                          placeholder="Qué dijeron exactamente, con quién hablamos, si conviene reintentar más adelante"></textarea>
+              </label>
+            </div>
+
             <label class="field"><span>Notas generales</span>
               <textarea id="f-notas" rows="3"></textarea>
             </label>

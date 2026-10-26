@@ -1037,6 +1037,14 @@ function enlazarAltaHistorial(cuerpo, id) {
 }
 
 function registrarContacto(cuerpo, id) {
+    // Mientras el alta de la institución no volvió del servidor, su ID es
+  // provisorio y la planilla no lo conoce. Un contacto guardado contra ese ID
+  // queda colgado: no aparece bajo ninguna institución y nadie se entera.
+  // Ya pasó una vez, en septiembre de 2026.
+  if (String(id).indexOf("tmp-") === 0) {
+    avisar("Esperá unos segundos a que termine de guardarse la institución y volvé a intentarlo.", "warn");
+    return;
+  }
   const fecha = cuerpo.querySelector("[data-campo='fecha']").value.trim();
   const canal = cuerpo.querySelector("[data-campo='canal']").value;
   const resumen = cuerpo.querySelector("[data-campo='resumen']").value.trim();
